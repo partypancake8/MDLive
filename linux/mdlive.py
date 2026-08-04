@@ -1067,8 +1067,18 @@ class SettingsWindow(Gtk.Window):
     def __init__(self, app, parent):
         super().__init__(title="MDLive Settings", transient_for=parent)
         self.app = app
-        self.set_default_size(460, 460)
+        self.set_default_size(560, 520)
         self.set_border_width(16)
+        # Pick up the light/dark preference before this window is realized, so it
+        # matches the document windows instead of falling back to the system
+        # theme's default variant.
+        apply_chrome_theme()
+
+        # Its own header bar, so it matches the document windows rather than
+        # depending on whatever decoration the window manager supplies.
+        header = Gtk.HeaderBar(show_close_button=True)
+        header.set_title("Settings")
+        self.set_titlebar(header)
 
         grid = Gtk.Grid(row_spacing=10, column_spacing=14)
         self.add(grid)
