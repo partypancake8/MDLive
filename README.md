@@ -9,7 +9,16 @@ edits a `.md` file, you see the new version straight away without touching
 anything. There is no editor, no vault, and no server. It opens a file and shows
 it.
 
-![MDLive live refresh](docs/images/mdlive-live.gif)
+<table>
+  <tr>
+    <td width="50%"><a href="docs/images/thumb-dark.png"><img src="docs/images/thumb-dark.png" width="100%" alt="Dark theme reading view"></a></td>
+    <td width="50%"><a href="docs/images/thumb-light-outline.png"><img src="docs/images/thumb-light-outline.png" width="100%" alt="Light theme with the outline sidebar and find"></a></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/images/thumb-math.png"><img src="docs/images/thumb-math.png" width="100%" alt="LaTeX math rendered with KaTeX"></a></td>
+    <td width="50%"><a href="docs/images/thumb-settings.png"><img src="docs/images/thumb-settings.png" width="100%" alt="Settings window"></a></td>
+  </tr>
+</table>
 
 ## What it does
 
@@ -50,12 +59,6 @@ current default alone, and `./install.sh --uninstall` to remove it.
 ```
 mdlive README.md
 ```
-
-![MDLive on Linux, dark theme](docs/images/linux-dark.png)
-
-The light theme, the outline sidebar and find:
-
-![Light theme with the outline sidebar and find](docs/images/linux-light-outline.png)
 
 ### Shortcuts
 

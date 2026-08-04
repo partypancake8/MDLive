@@ -541,8 +541,11 @@ class Renderer:
 
     def _on_ready_msg(self, _ucm, _res):
         self._ready = True
-        self._flush()
+        # Settings must land before the first render. render() reads
+        # window.__mathEnabled while it runs, and applySettings is what sets it,
+        # so flushing first would draw the opening document with raw LaTeX.
         self.apply_current_settings()
+        self._flush()
         if self.on_ready:
             self.on_ready()
 
@@ -892,6 +895,9 @@ class DocumentWindow(Gtk.ApplicationWindow):
 
     def _on_settings_changed(self):
         self.renderer.apply_current_settings()
+        # Theme, width, zoom and custom CSS are pure view changes, but math is
+        # applied during render(), so toggling it needs the document drawn again.
+        self.reload()
         self._start_watching()
 
     def _on_close(self, *_):
