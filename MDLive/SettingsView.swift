@@ -74,7 +74,7 @@ struct SettingsView: View {
     }
 }
 
-/// Shared "Restore Defaults" row — resets every setting tab + shortcuts.
+/// Shared "Restore Defaults" row, resets every setting tab + shortcuts.
 struct RestoreDefaultsRow: View {
     @State private var confirming = false
     var body: some View {
@@ -94,7 +94,7 @@ struct RestoreDefaultsRow: View {
     }
 }
 
-/// Shortcuts tab — lists every app shortcut; click Record to remap (Esc cancels).
+/// Shortcuts tab, lists every app shortcut; click Record to remap (Esc cancels).
 struct ShortcutsTab: View {
     @ObservedObject private var shortcuts = Shortcuts.shared
     @State private var recordingID: String? = nil

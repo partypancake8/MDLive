@@ -1,84 +1,151 @@
 # MDLive
 
-A tiny native macOS app that previews Markdown and live-refreshes when the file
-changes on disk — built for working alongside AI coding agents (Claude Code,
-Codex) that edit `.md` files externally. Preview-only: no editor, no vault, no
-server. See [`PRD.md`](PRD.md) for the full spec and [`PROGRESS.md`](PROGRESS.md)
-for step-by-step status.
+A small Markdown previewer that re-renders the moment the file changes on disk.
 
-## Status — 2026-06-24
+It was built for working next to AI coding agents. When Claude Code or Codex
+edits a `.md` file, you see the new version straight away without touching
+anything. There is no editor, no vault, and no server. It opens a file and shows
+it.
 
-**Working:** the app builds, installs, renders Markdown in a clean dark window,
-and **live-refreshes when the file changes on disk** — the core product. Proven
-offline in the real WKWebView, with a watcher unit suite + end-to-end checks.
+![MDLive live refresh](docs/mdlive-live.gif)
 
-**v2 (2026-06-24) — normal-app features** (PRD-v2.md, all 22 steps built; 14 XCTests green): Settings window (⌘,), **Dark + Light themes**, font **zoom** (⌘+/-/0), content width, **⌘F find** with match count, **outline sidebar** (⌥⌘1), **print + export PDF/HTML**, always-on-top (⌃⌘T), copy path (⌘L) + drag-to-open, window-frame + scroll memory, **GFM** task lists/footnotes/deflists/strikethrough, **LaTeX math** (KaTeX, offline, toggle), **custom CSS** (live-watched), CLI installer, Sparkle auto-update *plumbing* (inert until a release host/keys/notarization exist). Still offline-only; ad-hoc signed for local use.
+## What it does
 
-### Built & verified
-- **Project scaffold** — XcodeGen (`project.yml`) → Xcode project; Swift, macOS 13+, builds unsigned for local dev.
-- **Markdown rendering** — bundled **markdown-it 14.1.0** + **highlight.js 11.10.0** in a `WKWebView`, 100% offline. Headings, bold/italic, inline + fenced code with **syntax highlighting**, lists, tables, blockquotes, links, images all render.
-- **Dark theme** — GitHub-dark-style (`theme.css`), readable, code panels, bordered tables.
-- **Window management** — AppKit `WindowManager`: one window per file, deduped (re-open focuses), clean teardown, sane default size (820×720, resizable).
-- **Finder integration** — registers as a Markdown viewer (`.md` / `.markdown`); can be set as default app.
-- **App icon** — dark `M⌄` mark (`MDLive.icns`).
-- **Verification** — headless self-test reads the rendered DOM back (`<h1>Hello, MDLive</h1>`, `hljs-keyword`, `<blockquote>`); GUI window-open verified via marker (one window per file, no spawn loop).
+- Re-renders on every save, including atomic saves where the editor writes a
+  temp file and renames it over the original
+- Keeps your scroll position across refreshes, so the page does not jump
+- Syntax highlighting for fenced code blocks
+- GitHub style tables, task lists, footnotes, definition lists, strikethrough
+- LaTeX math with KaTeX, off by default, works offline
+- Dark and light themes, font zoom, and an adjustable content width
+- Find, with a match count
+- An outline sidebar built from the document headings
+- Print, plus export to PDF or self contained HTML
+- Keep the window on top, so it can sit beside your editor
+- One window per file, and re-opening a file focuses the window it is in already
+- Fully offline. Nothing is fetched at runtime and nothing is reported anywhere.
 
-### Live refresh + app polish (Steps 6–11, done 2026-06-24)
-- **Step 6 — live file watching.** FSEvents on the parent dir + 150ms debounce + (mtime,size)-stable guard; scroll-preserving incremental re-render. Verified: external write **and** atomic replace both auto-refresh; watcher XCTest suite green.
-- **Step 7 — robustness.** 1s poll fallback; survives 50-write bursts (debounced to ~2 renders), delete, recreate, partial writes — no crash.
-- **Step 8 — menus + ⌘R.** AppKit main menu: Open ⌘O, Open Recent (UserDefaults), Reveal ⌘⇧R, Close ⌘W, Refresh ⌘R.
-- **Step 9 — empty + error states.** Exact §5.5 strings, error overlay, empty state.
-- **Step 10 — multi-window isolation.** One watcher per window; editing one window doesn't touch others; clean teardown on close (unit-tested).
-- **Step 11 — signing.** Ad-hoc signed for local use (`scripts/build-and-sign.sh local`). Developer-ID notarization scripted (`ship` mode) — needs an Apple Developer ID.
+## Linux
 
-### Not yet built
-- Step 4 — full theme/element pass (`kitchen-sink.md` checklist).
-- Step 5 — `mdlive-img` path validation (DEC-13) + image fixtures.
-- Step 11 ship tier — Developer-ID notarization (needs Apple Developer ID).
+Needs Python 3, GTK 3 and WebKit2GTK, which most desktops already have:
 
-## Build & run
+```
+sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1
+```
+
+Then install into `~/.local`, no root required:
+
+```
+git clone https://github.com/partypancake8/MDLive.git
+cd MDLive/linux
+./install.sh
+```
+
+That puts `mdlive` on your PATH, adds a desktop entry, and makes MDLive the
+default opener for `.md` files. Use `./install.sh --no-default` to leave your
+current default alone, and `./install.sh --uninstall` to remove it.
+
+```
+mdlive README.md
+```
+
+![MDLive on Linux, dark theme](docs/linux-dark.png)
+
+The light theme, the outline sidebar and find:
+
+![Light theme with the outline sidebar and find](docs/linux-light-outline.png)
+
+### Shortcuts
+
+| Action | Key |
+| --- | --- |
+| Open | `Ctrl+O` |
+| Refresh | `Ctrl+R` |
+| Find | `Ctrl+F` |
+| Find next, find previous | `Ctrl+G`, `Ctrl+Shift+G` |
+| Zoom in, out, reset | `Ctrl++`, `Ctrl+-`, `Ctrl+0` |
+| Outline sidebar | `Ctrl+Alt+1` |
+| Keep on top | `Ctrl+Shift+T` |
+| Copy file path | `Ctrl+L` |
+| Print | `Ctrl+P` |
+| Settings | `Ctrl+,` |
+
+## macOS
+
+The Mac version is a native Swift app built on AppKit and WKWebView. Build it
+with [XcodeGen](https://github.com/yonaskolb/XcodeGen):
 
 ```
 brew install xcodegen
-cd /Users/work/Personal/MDLive
+cd MDLive
 xcodegen generate
-xcodebuild -project MDLive.xcodeproj -scheme MDLive -configuration Debug CODE_SIGNING_ALLOWED=NO -derivedDataPath build/dd build
-```
-
-Install to /Applications and open a file:
-
-```
+xcodebuild -project MDLive.xcodeproj -scheme MDLive -configuration Debug \
+  CODE_SIGNING_ALLOWED=NO -derivedDataPath build/dd build
 cp -R build/dd/Build/Products/Debug/MDLive.app /Applications/MDLive.app
 open -a MDLive sample/hello.md
 ```
 
-> Note: `open -a` against the raw DerivedData path fails with Launch Services
-> error -600 — install to `/Applications` (above) and launch by name.
+Install to `/Applications` and launch it by name. Running `open -a` against the
+raw DerivedData path fails with Launch Services error -600.
 
-Headless render self-test:
+The shortcuts match the table above with Command in place of Control, so Open is
+`⌘O` and the outline is `⌥⌘1`.
+
+The Mac build is ad hoc signed for local use. Developer ID signing and
+notarization are not set up, so the Sparkle update plumbing is wired in but
+inert.
+
+## How it works
+
+Both versions share the same renderer. `MDLive/Resources/web/` holds
+markdown-it, highlight.js and KaTeX, all vendored and pinned, and `index.html`
+defines the entire contract: a `render()` function, a `ready` handshake, and a
+few message handlers for links, the outline and scroll position.
+
+The native side of each app is only a shell around that:
+
+| | macOS | Linux |
+| --- | --- | --- |
+| Windows and menus | AppKit | GTK 3 |
+| Web view | WKWebView | WebKit2GTK |
+| File watching | FSEvents | GIO file monitor |
+| Language | Swift | Python |
+
+Both web views are WebKit, so the Linux port uses the web assets byte for byte
+with no changes, including the `window.webkit.messageHandlers` bridge and the
+custom `mdlive-img://` scheme that serves local images. Images are only served
+from the directory holding the open file, so a document cannot pull in files
+from elsewhere on disk.
+
+The watcher monitors the parent directory rather than the file itself, because
+an atomic save replaces the inode and would break a watch on the file. Changes
+are debounced by 150 ms and only applied once the size and modification time
+stop moving, which avoids rendering a half written file. A slow poll runs
+alongside as a fallback.
+
+## Development
+
+```
+linux/mdlive.py --selftest
+```
+
+The selftest renders fixtures in a real offscreen WebKit view and reads the
+resulting DOM back, checking headings, bold text, syntax highlighting,
+blockquotes, tables, the outline, find and HTML export. It also covers the image
+path validation and the error strings. It exits non zero on failure.
+
+The Mac side has an equivalent harness plus XCTest suites:
 
 ```
 MDLIVE_SELFTEST=/tmp/out.json MDLIVE_OPEN="$PWD/sample/hello.md" \
   /Applications/MDLive.app/Contents/MacOS/MDLive
-cat /tmp/out.json   # rendered DOM readback
 ```
 
-## Architecture (current)
+`sample/` holds the fixtures, including `kitchen-sink.md`, which exercises every
+supported element.
 
-```
-MDLiveApp (SwiftUI, Settings-only scene)
-  AppDelegate.application(_:open:) ─→ WindowManager.open(url)   (Finder/Open With)
-WindowManager (AppKit)  ─ one NSWindow per file, deduped
-  └─ NSHostingController(DocumentView)
-       └─ PreviewModel (reads file)  →  WebRenderer (NSViewRepresentable)
-            └─ WebKitRenderer  ─ WKWebView + mdlive-img scheme + ready/link handlers
-                 └─ Resources/web/  index.html · markdown-it · highlight.js · theme.css
-```
+## Project docs
 
-Source files: `MDLive/MDLiveApp.swift`, `WindowManager.swift`, `WebRenderer.swift`,
-`WebKitRenderer.swift`, `SelfTestRunner.swift`, `Resources/web/*`.
-
-## Key decisions
-markdown-it-in-WKWebView rendering · non-sandboxed, local-build-needs-no-signing ·
-AppKit window management (not SwiftUI `WindowGroup`, which loop-spawned/restored
-windows) · dark-always theme. Full rationale in [`PRD.md`](PRD.md) §1.
+- [`PRD.md`](PRD.md) and [`PRD-v2.md`](PRD-v2.md) for the specs
+- [`PROGRESS.md`](PROGRESS.md) for build status
+- [`CHANGELOG.md`](CHANGELOG.md) for what landed when

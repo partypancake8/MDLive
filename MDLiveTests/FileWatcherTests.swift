@@ -67,7 +67,7 @@ final class FileWatcherTests: XCTestCase {
     }
 
     /// Step 10 teardown: releasing the model (what windowWillClose does) must
-    /// deallocate it AND its FileWatcher — i.e. no retain cycle keeps a watcher
+    /// deallocate it AND its FileWatcher, i.e. no retain cycle keeps a watcher
     /// alive after its window closes.
     func testModelAndWatcherDeallocate() throws {
         let file = dir.appendingPathComponent("d.md")

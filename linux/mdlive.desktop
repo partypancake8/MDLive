@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=MDLive
+GenericName=Markdown Preview
+Comment=Preview Markdown and refresh when the file changes on disk
+Exec=mdlive %F
+Icon=mdlive
+Terminal=false
+Categories=Utility;TextTools;
+MimeType=text/markdown;text/x-markdown;
+StartupNotify=true
+StartupWMClass=mdlive.py
+Keywords=markdown;md;preview;viewer;

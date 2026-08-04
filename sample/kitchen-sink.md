@@ -1,4 +1,4 @@
-# Kitchen Sink — H1
+# Kitchen Sink: H1
 
 ## Heading 2
 

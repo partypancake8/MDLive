@@ -189,7 +189,7 @@ enum RecentFiles {
         UserDefaults.standard.set(computeList(current, adding: url.standardizedFileURL.path), forKey: key)
     }
 
-    /// Pure list update (dedupe, most-recent-first, capped) — unit-testable.
+    /// Pure list update (dedupe, most-recent-first, capped), unit-testable.
     static func computeList(_ current: [String], adding path: String, max: Int = maxCount) -> [String] {
         var paths = current
         paths.removeAll { $0 == path }

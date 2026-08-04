@@ -96,14 +96,14 @@ final class PreviewModel: ObservableObject {
     private func handle(_ event: FileWatcher.Event) {
         switch event {
         case .changed, .appeared: load()
-        case .deleted: errorText = "Can't find this file — it may have been moved or deleted.\n\(url.path)"
+        case .deleted: errorText = "Can't find this file, it may have been moved or deleted.\n\(url.path)"
         }
     }
 
     private func load() {
         let fm = FileManager.default
         guard fm.fileExists(atPath: url.path) else {
-            errorText = "Can't find this file — it may have been moved or deleted.\n\(url.path)"; return
+            errorText = "Can't find this file, it may have been moved or deleted.\n\(url.path)"; return
         }
         guard fm.isReadableFile(atPath: url.path) else {
             errorText = "MDLive doesn't have permission to read this file.\n\(url.path)"; return

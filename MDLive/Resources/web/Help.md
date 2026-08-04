@@ -15,5 +15,5 @@ A live Markdown previewer. Open a `.md` file and it re-renders whenever the file
 Theme (Dark / Light), content width, font scale, auto-refresh + polling speed, LaTeX math, and a custom CSS file.
 
 ## Notes
-- MDLive never edits your file — it's preview-only.
+- MDLive never edits your file, it's preview-only.
 - Everything runs offline; there are no network calls.

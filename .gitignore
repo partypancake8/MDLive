@@ -3,3 +3,5 @@ DerivedData/
 .DS_Store
 build/
 *.xcuserstate
+__pycache__/
+*.pyc

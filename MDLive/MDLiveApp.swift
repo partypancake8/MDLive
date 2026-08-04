@@ -17,7 +17,7 @@ struct MDLiveApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var recentMenu = NSMenu(title: "Open Recent")
     private var shortcutsCancellable: AnyCancellable?
-    // Sparkle (V21) — inert: SUEnableAutomaticChecks=NO in Info.plist; only the
+    // Sparkle (V21), inert: SUEnableAutomaticChecks=NO in Info.plist; only the
     // explicit "Check for Updates…" reaches the (placeholder) feed.
     private lazy var updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         buildMainMenu()
         // SwiftUI installs its OWN default main menu (only "Enter Full Screen" in View,
         // no File/Edit) and re-installs it AFTER the app becomes active and whenever a
-        // window becomes key — clobbering ours. A single early reassert isn't enough
+        // window becomes key, clobbering ours. A single early reassert isn't enough
         // (it fails on a no-document launch, e.g. from Raycast/Dock). Reassert on those
         // notifications so our File/Edit/View (incl. zoom) menus always win.
         DispatchQueue.main.async { [weak self] in self?.buildMainMenu() }
@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func buildMainMenu() { NSApp.mainMenu = makeMainMenu() }
 
-    /// Build the main menu (internal so it can be exercised in tests — building it
+    /// Build the main menu (internal so it can be exercised in tests, building it
     /// twice is the remap-rebuild path that must not crash on a re-attached submenu).
     func makeMainMenu() -> NSMenu {
         let main = NSMenu()
@@ -208,7 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             alert.informativeText = "Run:  mdlive file.md"
         } else {
             alert.messageText = "Couldn't install to /usr/local/bin"
-            alert.informativeText = "That folder may not exist or need permission. Create it with:\n  sudo mkdir -p /usr/local/bin && sudo chown $(whoami) /usr/local/bin\nthen try again — or put this on your PATH:\n  #!/bin/sh\n  open -a MDLive \"$@\""
+            alert.informativeText = "That folder may not exist or need permission. Create it with:\n  sudo mkdir -p /usr/local/bin && sudo chown $(whoami) /usr/local/bin\nthen try again, or put this on your PATH:\n  #!/bin/sh\n  open -a MDLive \"$@\""
         }
         alert.runModal()
     }

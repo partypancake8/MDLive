@@ -1,4 +1,4 @@
-/* MDLive theme — PRD §5.6 / §3.5. CSS variables; default (no [data-theme]) = dark
+/* MDLive theme, PRD §5.6 / §3.5. CSS variables; default (no [data-theme]) = dark
    (byte-equivalent to v1's palette). [data-theme="light"] overrides for light mode (DEC-V1). */
 :root {
   color-scheme: dark;
@@ -57,7 +57,7 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); }
   font: 0.9em/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-/* Fenced code blocks — highlight*.css colors the tokens */
+/* Fenced code blocks, highlight*.css colors the tokens */
 #content pre {
   background: var(--panel-bg);
   border: 1px solid var(--border);

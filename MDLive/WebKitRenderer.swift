@@ -10,7 +10,7 @@ final class WebKitRenderer: NSObject, WKNavigationDelegate, WKScriptMessageHandl
     var onReady: (() -> Void)?
     var onOutline: (([OutlineItem]) -> Void)?   // V10
     var onScroll: ((Double) -> Void)?           // V12
-    var initialScrollPct: Double = 0            // V12 — applied on the first render
+    var initialScrollPct: Double = 0            // V12, applied on the first render
     private var didFirstRender = false
     private let imageHandler = ImageSchemeHandler()
 
@@ -43,7 +43,7 @@ final class WebKitRenderer: NSObject, WKNavigationDelegate, WKScriptMessageHandl
         webView.loadFileURL(index, allowingReadAccessTo: webDir)
     }
 
-    /// Render markdown into the live DOM (DEC-9 — no reload). Queues if not ready.
+    /// Render markdown into the live DOM (DEC-9, no reload). Queues if not ready.
     func render(markdown: String, baseDir: String, scrollPct: Double) {
         latest = (markdown, baseDir, scrollPct)
         imageHandler.docDir = baseDir // DEC-13: scope image reads to this doc's dir
@@ -145,7 +145,7 @@ final class WebKitRenderer: NSObject, WKNavigationDelegate, WKScriptMessageHandl
 /// Serves local images for `mdlive-img://<percent-encoded-abs-path>`, validated
 /// to live under the open file's directory (DEC-8/DEC-13). Minimal for the
 /// hello-world slice; full directory-prefix validation lands in Step 5.
-/// A heading for the TOC sidebar (V10). `anchor` is the heading id (unique — the
+/// A heading for the TOC sidebar (V10). `anchor` is the heading id (unique, the
 /// anchor plugin de-dupes slugs).
 struct OutlineItem: Identifiable, Hashable {
     let level: Int

@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 
 /// App-wide settings (PRD §3.1). Singleton referenced directly by every consumer
-/// (DEC-V14 — AppKit document windows can't receive the SwiftUI `Settings` scene
+/// (DEC-V14, AppKit document windows can't receive the SwiftUI `Settings` scene
 /// environment). Backed by `@Published` + UserDefaults rather than `@AppStorage`
 /// so `objectWillChange` fires for the non-SwiftUI Combine observers (each
 /// WebKitRenderer) that DEC-V2 relies on.

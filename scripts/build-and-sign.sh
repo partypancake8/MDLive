@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# MDLive — build, (ad-hoc) sign, and notarize helper. PRD Step 11.
+# MDLive: build, (ad-hoc) sign, and notarize helper. PRD Step 11.
 #
 # Tiers (DEC-2):
-#   • LOCAL  — ad-hoc signing, runs on your own Mac, no Apple Developer ID needed.
-#   • SHIP   — Developer ID signing + notarization, opens cleanly on other Macs.
+#   • LOCAL : ad-hoc signing, runs on your own Mac, no Apple Developer ID needed.
+#   • SHIP  : Developer ID signing + notarization, opens cleanly on other Macs.
 #
 # Usage:
 #   scripts/build-and-sign.sh local       # build Release + ad-hoc sign + install to /Applications

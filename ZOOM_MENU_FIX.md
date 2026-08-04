@@ -4,7 +4,7 @@
 
 ## Symptom
 Zoom (⌘+ / ⌘- / ⌘0) did nothing. The **View** menu showed only "Enter Full Screen";
-the menu bar was just `MDLive / View / Window / Help` — no File or Edit menu.
+the menu bar was just `MDLive / View / Window / Help`, no File or Edit menu.
 
 ## Root cause
 `MDLiveApp` is a SwiftUI `App` (with a `Settings` scene) using an `AppDelegate`.
@@ -20,10 +20,10 @@ A secondary keyboard issue: Zoom In's key equivalent was the shifted symbol `"+"
 with a command-only modifier mask, which matches unreliably.
 
 ## Fix (2 files)
-- **`MDLive/MDLiveApp.swift`** — reassert the custom menu whenever SwiftUI would
+- **`MDLive/MDLiveApp.swift`**, reassert the custom menu whenever SwiftUI would
   re-install its own. A single early reassert is NOT enough: SwiftUI re-installs its
   stub menu *after the app becomes active* and *whenever a window becomes key*. Crucially
-  this only broke the **no-document launch** (Raycast/Dock/Spotlight — app opened with no
+  this only broke the **no-document launch** (Raycast/Dock/Spotlight, app opened with no
   file); launching with a file argument happened to dodge it, which is why terminal tests
   (always run with a file) all passed. Fix reasserts on both notifications:
   ```swift
@@ -35,13 +35,13 @@ with a command-only modifier mask, which matches unreliably.
       }
   }
   ```
-- **`MDLive/Shortcuts.swift`** — bind Zoom In to the unshifted `"="` key (reliable),
+- **`MDLive/Shortcuts.swift`**, bind Zoom In to the unshifted `"="` key (reliable),
   and display it as `⌘+` via a glyph alias so the menu looks unchanged.
 
 ## How it was diagnosed
 The menu is app-wide, so different windows behaving differently = different processes.
 Verified the real state by logging `NSApp.mainMenu` titles to a file 1.5s after launch,
-launched both with a file (full menu ✓) and via bundle id with no file (stub menu ✗) —
+launched both with a file (full menu ✓) and via bundle id with no file (stub menu ✗) -
 which isolated the no-document launch as the trigger.
 
 ## Note on "it worked in one window but not another"

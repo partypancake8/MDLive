@@ -22,7 +22,7 @@ final class MenuRebuildTests: XCTestCase {
         let menu1 = delegate.makeMainMenu()
         XCTAssertEqual(find(menu1, "Find…")?.keyEquivalent, "f")
 
-        // Remap, then rebuild — before the fix this threw on `recentItem.setSubmenu:`.
+        // Remap, then rebuild, before the fix this threw on `recentItem.setSubmenu:`.
         Shortcuts.shared.set("find", key: "j", mods: [.command, .shift])
         let menu2 = delegate.makeMainMenu()
         let find2 = find(menu2, "Find…")
