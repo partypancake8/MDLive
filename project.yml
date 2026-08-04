@@ -1,0 +1,52 @@
+name: MDLive
+options:
+  bundleIdPrefix: com.ssmith
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.ssmith.MDLive
+    SWIFT_VERSION: "5.0"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+targets:
+  MDLive:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    scheme:
+      testTargets:
+        - MDLiveTests
+    dependencies:
+      - package: Sparkle
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_FILE: MDLive/Info.plist
+        COMBINE_HIDPI_IMAGES: "YES"
+    sources:
+      - path: MDLive
+        excludes:
+          - "Info.plist"
+          - "Resources/web"
+      - path: MDLive/Resources/web
+        type: folder
+  MDLiveTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - MDLiveTests
+    dependencies:
+      - target: MDLive
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        PRODUCT_BUNDLE_IDENTIFIER: com.ssmith.MDLiveTests

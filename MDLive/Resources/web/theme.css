@@ -1,0 +1,103 @@
+/* MDLive theme — PRD §5.6 / §3.5. CSS variables; default (no [data-theme]) = dark
+   (byte-equivalent to v1's palette). [data-theme="light"] overrides for light mode (DEC-V1). */
+:root {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --fg: #e6edf3;
+  --muted: #8b949e;
+  --link: #4493f8;
+  --heading: #f0f6fc;
+  --divider: #21262d;
+  --border: #30363d;
+  --code-bg: #161b22;
+  --code-fg: #79c0ff;
+  --panel-bg: #161b22;
+}
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --link: #0969da;
+  --heading: #1f2328;
+  --divider: #d1d9e0;
+  --border: #d1d9e0;
+  --code-bg: #f6f8fa;
+  --code-fg: #0550ae;
+  --panel-bg: #f6f8fa;
+}
+
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+
+#content {
+  max-width: var(--content-max, 860px);
+  margin: 0 auto;
+  padding: 32px;
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#content h1, #content h2, #content h3,
+#content h4, #content h5, #content h6 { color: var(--heading); line-height: 1.25; margin: 1.4em 0 0.6em; }
+#content h1 { font-size: 1.9em; border-bottom: 1px solid var(--divider); padding-bottom: 0.3em; }
+#content h2 { font-size: 1.5em; border-bottom: 1px solid var(--divider); padding-bottom: 0.25em; }
+#content h3 { font-size: 1.25em; }
+
+#content p { margin: 0.8em 0; }
+#content a { color: var(--link); text-decoration: none; }
+#content a:hover { text-decoration: underline; }
+#content strong { color: var(--heading); }
+
+/* Inline code */
+#content code {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 2px 5px;
+  border-radius: 6px;
+  font: 0.9em/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Fenced code blocks — highlight*.css colors the tokens */
+#content pre {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+#content pre code { background: transparent; color: inherit; padding: 0; font-size: 0.88em; }
+
+/* Tables */
+#content table { border-collapse: collapse; display: block; overflow-x: auto; max-width: 100%; }
+#content th, #content td { border: 1px solid var(--border); padding: 6px 12px; }
+#content th { background: var(--panel-bg); color: var(--heading); text-align: left; }
+
+/* Blockquote */
+#content blockquote { margin: 1em 0; padding: 0.2em 1em; border-left: 4px solid var(--border); color: var(--muted); }
+
+#content hr { border: none; border-top: 1px solid var(--divider); margin: 1.6em 0; }
+
+#content ul, #content ol { padding-left: 1.6em; }
+#content li { margin: 0.3em 0; }
+
+/* GFM task lists (preview-only, disabled) */
+#content .task-list-item { list-style: none; }
+#content .task-list-item input { margin: 0 0.4em 0 -1.4em; }
+
+/* Footnotes */
+#content .footnote-ref a { font-size: 0.8em; }
+#content hr.footnotes-sep { margin-top: 2em; }
+#content .footnotes { font-size: 0.9em; color: var(--muted); }
+
+/* Definition lists */
+#content dl dt { font-weight: 600; color: var(--heading); margin-top: 0.6em; }
+#content dl dd { margin: 0 0 0.4em 1.4em; color: var(--fg); }
+
+#content img { max-width: 100%; height: auto; border-radius: 6px; }
+
+/* KaTeX (V16) inherits color; keep math readable in both themes */
+#content .katex { color: var(--fg); }
+
+/* Find highlights (V8) */
+#content mark.mdlive-hit { background: rgba(255, 211, 61, 0.35); color: inherit; border-radius: 2px; }
+#content mark.mdlive-hit-active { background: #ffd33d; color: #000; }

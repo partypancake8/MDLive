@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link id="hljs-dark" rel="stylesheet" href="highlight-dark.css">
+<link id="hljs-light" rel="stylesheet" href="highlight-light.css" disabled>
+<link rel="stylesheet" href="theme.css">
+<script src="markdown-it.min.js"></script>
+<script src="highlight.min.js"></script>
+<script src="markdownItAnchor.umd.js"></script>
+<script src="markdown-it-task-lists.min.js"></script>
+<script src="markdown-it-footnote.min.js"></script>
+<script src="markdown-it-deflist.min.js"></script>
+<link rel="stylesheet" href="katex.min.css">
+<script src="katex.min.js"></script>
+<script src="katex-auto-render.min.js"></script>
+</head>
+<body>
+<div id="content"></div>
+<script>
+  // markdown-it: GFM-ish, autolink, tables on by default. (PRD §5.1)
+  function buildMd(mathEnabled) {
+    var m = window.markdownit({ html: false, linkify: true, typographer: false });
+    if (window.markdownItAnchor) m.use(window.markdownItAnchor, { slugify: function (s) {
+      return s.toLowerCase().trim().replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "");
+    }});
+    if (window.markdownitTaskLists) m.use(window.markdownitTaskLists, { enabled: false }); // disabled = preview-only
+    if (window.markdownitFootnote) m.use(window.markdownitFootnote);
+    if (window.markdownitDeflist) m.use(window.markdownitDeflist);
+    return m; // KaTeX (V16) is applied post-render via auto-render, not a md plugin
+  }
+  var md = buildMd(false);
+  window.__mdliveRenderCount = 0;
+
+  function render(markdown, opts) {
+    opts = opts || { baseDir: "", scrollPct: 0 };
+    var se = document.scrollingElement || document.documentElement;
+    // Capture current scroll % BEFORE the swap so a live refresh keeps position (DEC-10).
+    var prevPct = se.scrollHeight > 0 ? se.scrollTop / se.scrollHeight : 0;
+    var html = md.render(markdown || "");
+    var c = document.getElementById("content");
+    c.innerHTML = html;
+    window.__mdliveRenderCount++;
+
+    // Syntax highlight fenced blocks.
+    c.querySelectorAll("pre code").forEach(function (b) {
+      try { window.hljs.highlightElement(b); } catch (e) {}
+    });
+
+    // Rewrite local image srcs through the mdlive-img scheme (DEC-8/DEC-13).
+    c.querySelectorAll("img").forEach(function (img) {
+      var src = img.getAttribute("src") || "";
+      if (/^https?:/i.test(src) || /^mdlive-img:/i.test(src)) return;
+      var abs = (src.charAt(0) === "/") ? src : (opts.baseDir + "/" + src);
+      img.setAttribute("src", "mdlive-img://" + encodeURIComponent(abs));
+    });
+
+    // Tag links for the delegated click handler (DEC-11).
+    c.querySelectorAll("a[href]").forEach(function (a) {
+      a.setAttribute("data-mdlive-link", "1");
+    });
+
+    // Math (V16): KaTeX auto-render when enabled (post-render, DEC-V10 amended).
+    if (window.__mathEnabled && window.renderMathInElement) {
+      try {
+        window.renderMathInElement(c, {
+          delimiters: [{ left: "$$", right: "$$", display: true }, { left: "$", right: "$", display: false }],
+          throwOnError: false
+        });
+      } catch (e) {}
+    }
+
+    // Outline (V10): collect headings (anchor plugin set the ids) and notify Swift.
+    window.__mdliveOutline = [];
+    c.querySelectorAll("h1,h2,h3,h4,h5,h6").forEach(function (h) {
+      if (h.id) window.__mdliveOutline.push({ level: parseInt(h.tagName.substring(1)), text: h.textContent, id: h.id });
+    });
+    try { window.webkit.messageHandlers.outline.postMessage(window.__mdliveOutline); } catch (e) {}
+
+    // Scroll (V12/DEC-10): first render of a doc uses the stored pct; live refreshes keep current.
+    se.scrollTop = (opts.initial ? (opts.scrollPct || 0) : prevPct) * se.scrollHeight;
+  }
+
+  // Find (V8 / DEC-V13): JS highlight + count (native WKWebView.find gives no count).
+  var __findHits = [], __findIdx = -1;
+  function clearFind() {
+    __findHits.forEach(function (m) {
+      var p = m.parentNode; if (p) { p.replaceChild(document.createTextNode(m.textContent), m); p.normalize(); }
+    });
+    __findHits = []; __findIdx = -1;
+  }
+  function find(query) {
+    clearFind();
+    if (!query) return { count: 0, current: 0 };
+    var c = document.getElementById("content");
+    var rx = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    var walker = document.createTreeWalker(c, NodeFilter.SHOW_TEXT, null), nodes = [], n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    nodes.forEach(function (node) {
+      var t = node.textContent; rx.lastIndex = 0; if (!rx.test(t)) return; rx.lastIndex = 0;
+      var frag = document.createDocumentFragment(), last = 0, m;
+      while ((m = rx.exec(t))) {
+        if (m.index > last) frag.appendChild(document.createTextNode(t.slice(last, m.index)));
+        var mark = document.createElement("mark"); mark.className = "mdlive-hit"; mark.textContent = m[0];
+        frag.appendChild(mark); __findHits.push(mark); last = m.index + m[0].length;
+        if (m.index === rx.lastIndex) rx.lastIndex++;
+      }
+      if (last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
+      if (node.parentNode) node.parentNode.replaceChild(frag, node);
+    });
+    if (__findHits.length) { __findIdx = 0; activateHit(); }
+    return { count: __findHits.length, current: __findHits.length ? 1 : 0 };
+  }
+  function activateHit() {
+    __findHits.forEach(function (m, i) { m.classList.toggle("mdlive-hit-active", i === __findIdx); });
+    if (__findHits[__findIdx]) __findHits[__findIdx].scrollIntoView({ block: "center" });
+  }
+  function findNext(forward) {
+    if (!__findHits.length) return { count: 0, current: 0 };
+    __findIdx = (__findIdx + (forward ? 1 : -1) + __findHits.length) % __findHits.length;
+    activateHit();
+    return { count: __findHits.length, current: __findIdx + 1 };
+  }
+  function getOutline() { return window.__mdliveOutline || []; }
+  // Export (V18): self-contained HTML — inline all stylesheet rules + the content.
+  // (PDF export is preferred for full fidelity incl. images/fonts.)
+  function serializeForExport() {
+    var css = "";
+    for (var i = 0; i < document.styleSheets.length; i++) {
+      try { var r = document.styleSheets[i].cssRules; for (var j = 0; j < r.length; j++) css += r[j].cssText + "\n"; } catch (e) {}
+    }
+    var theme = document.documentElement.getAttribute("data-theme") || "dark";
+    return '<!doctype html><html data-theme="' + theme + '"><head><meta charset="utf-8"><style>' +
+      css + '</style></head><body><div id="content">' +
+      document.getElementById("content").innerHTML + '</div></body></html>';
+  }
+  function scrollToAnchor(id) { var el = document.getElementById(id); if (el) el.scrollIntoView({ block: "start" }); }
+  function getScrollPct() { var se = document.scrollingElement || document.documentElement; return se.scrollHeight > 0 ? se.scrollTop / se.scrollHeight : 0; }
+
+  // Report scroll position (throttled) so Swift can persist it per file (V12).
+  var __scrollThrottle = null;
+  window.addEventListener("scroll", function () {
+    if (__scrollThrottle) return;
+    __scrollThrottle = setTimeout(function () {
+      __scrollThrottle = null;
+      try { window.webkit.messageHandlers.scroll.postMessage(getScrollPct()); } catch (e) {}
+    }, 250);
+  }, { passive: true });
+
+  // Theme toggle (DEC-V1): default/no-attr = dark; "light" sets the attribute and
+  // swaps the hljs stylesheet (the light sheet/link is added in V6).
+  function applyTheme(mode) {
+    document.documentElement.setAttribute("data-theme", mode === "light" ? "light" : "dark");
+    var dark = document.getElementById("hljs-dark"), light = document.getElementById("hljs-light");
+    if (dark && light) { dark.disabled = (mode === "light"); light.disabled = (mode !== "light"); }
+  }
+
+  // Apply all view-side settings (DEC-V2). Idempotent.
+  function applySettings(o) {
+    o = o || {};
+    applyTheme(o.theme || "dark");
+    if (o.contentMax) document.documentElement.style.setProperty("--content-max", o.contentMax);
+    var mathWas = window.__mathEnabled;
+    window.__mathEnabled = !!o.mathEnabled;
+    var u = document.getElementById("user-css");
+    if (!u) { u = document.createElement("style"); u.id = "user-css"; document.head.appendChild(u); }
+    u.textContent = o.customCSS || "";
+    // math toggle re-render handled in V16 (rebuild + re-render); flag stored here.
+  }
+
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest ? e.target.closest("a[data-mdlive-link]") : null;
+    if (a) {
+      e.preventDefault();
+      try { window.webkit.messageHandlers.link.postMessage(a.getAttribute("href")); } catch (_) {}
+    }
+  });
+
+  // Mandatory ready handshake so the first render() isn't dropped (PRD §5.3).
+  window.addEventListener("load", function () {
+    try { window.webkit.messageHandlers.ready.postMessage(true); } catch (_) {}
+  });
+</script>
+</body>
+</html>
