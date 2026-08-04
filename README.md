@@ -1,5 +1,7 @@
 # MDLive
 
+### [Install on macOS](#macos) &nbsp;·&nbsp; [Install on Linux](#linux)
+
 A small Markdown previewer that re-renders the moment the file changes on disk.
 
 It was built for working next to AI coding agents. When Claude Code or Codex
@@ -7,7 +9,7 @@ edits a `.md` file, you see the new version straight away without touching
 anything. There is no editor, no vault, and no server. It opens a file and shows
 it.
 
-![MDLive live refresh](docs/mdlive-live.gif)
+![MDLive live refresh](docs/images/mdlive-live.gif)
 
 ## What it does
 
@@ -49,11 +51,11 @@ current default alone, and `./install.sh --uninstall` to remove it.
 mdlive README.md
 ```
 
-![MDLive on Linux, dark theme](docs/linux-dark.png)
+![MDLive on Linux, dark theme](docs/images/linux-dark.png)
 
 The light theme, the outline sidebar and find:
 
-![Light theme with the outline sidebar and find](docs/linux-light-outline.png)
+![Light theme with the outline sidebar and find](docs/images/linux-light-outline.png)
 
 ### Shortcuts
 
@@ -146,6 +148,6 @@ supported element.
 
 ## Project docs
 
-- [`PRD.md`](PRD.md) and [`PRD-v2.md`](PRD-v2.md) for the specs
-- [`PROGRESS.md`](PROGRESS.md) for build status
+- [`PRD.md`](docs/PRD.md) and [`PRD-v2.md`](docs/PRD-v2.md) for the specs
+- [`PROGRESS.md`](docs/PROGRESS.md) for build status
 - [`CHANGELOG.md`](CHANGELOG.md) for what landed when
