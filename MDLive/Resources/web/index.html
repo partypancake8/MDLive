@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="katex.min.css">
 <script src="katex.min.js"></script>
 <script src="katex-auto-render.min.js"></script>
+<script src="mermaid.min.js"></script>
 </head>
 <body>
 <div id="content"></div>
@@ -42,6 +43,13 @@
     var c = document.getElementById("content");
     c.innerHTML = html;
     window.__mdliveRenderCount++;
+
+    // Mermaid: swap ```mermaid fences for diagram hosts BEFORE highlighting,
+    // so highlight.js never touches them. Rendering is async (see renderMermaid).
+    c.querySelectorAll("pre > code.language-mermaid").forEach(function (code) {
+      var pre = code.parentNode;
+      if (pre && pre.parentNode) pre.parentNode.replaceChild(mermaidHost(code.textContent), pre);
+    });
 
     // Syntax highlight fenced blocks.
     c.querySelectorAll("pre code").forEach(function (b) {
@@ -71,6 +79,10 @@
       } catch (e) {}
     }
 
+    // Mermaid diagrams (offline, vendored). Runs after KaTeX so the async SVG
+    // insert can never be touched by auto-render.
+    renderMermaid(c);
+
     // Outline (V10): collect headings (anchor plugin set the ids) and notify Swift.
     window.__mdliveOutline = [];
     c.querySelectorAll("h1,h2,h3,h4,h5,h6").forEach(function (h) {
@@ -80,6 +92,82 @@
 
     // Scroll (V12/DEC-10): first render of a doc uses the stored pct; live refreshes keep current.
     se.scrollTop = (opts.initial ? (opts.scrollPct || 0) : prevPct) * se.scrollHeight;
+  }
+
+  // Mermaid: fenced ```mermaid blocks render to inline SVG, fully offline
+  // (mermaid.min.js is vendored next to markdown-it). Initialised lazily with
+  // startOnLoad off and strict security; the Mermaid theme follows the app theme
+  // and a theme toggle re-renders every diagram from its stored source. Every
+  // call is wrapped so a bad diagram degrades to the fenced source plus a
+  // one-line "Mermaid error:" notice, never a blank area.
+  var __mermaidTheme = null;
+  window.__mdliveMermaidBusy = false;
+  function currentTheme() { return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark"; }
+  function mermaidHost(src) {
+    var host = document.createElement("pre");
+    host.className = "mermaid";
+    host.setAttribute("data-mermaid-src", src);
+    host.textContent = src;
+    return host;
+  }
+  function mermaidFallback(node, err) {
+    var src = node.getAttribute("data-mermaid-src") || "";
+    var box = document.createElement("div");
+    box.className = "mermaid-error";
+    box.setAttribute("data-mermaid-src", src);
+    var msg = document.createElement("div");
+    msg.className = "mermaid-error-msg";
+    var text = (err && (err.message || err.str || String(err))) || "unknown error";
+    var lines = String(text).split("\n").filter(function (l) { return l.trim(); });
+    msg.textContent = "Mermaid error: " + (lines.length > 1 ? lines[0] + " " + lines[lines.length - 1] : lines[0] || "unknown error");
+    var pre = document.createElement("pre"), code = document.createElement("code");
+    code.className = "language-mermaid";
+    code.textContent = src;
+    pre.appendChild(code);
+    box.appendChild(msg); box.appendChild(pre);
+    if (node.parentNode) node.parentNode.replaceChild(box, node);
+  }
+  function initMermaid(theme) {
+    if (!window.mermaid || __mermaidTheme === theme) return;
+    try {
+      window.mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "strict",
+        suppressErrorRendering: true,
+        theme: theme === "light" ? "default" : "dark",
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
+      });
+      __mermaidTheme = theme;
+    } catch (e) {}
+  }
+  function renderMermaid(c) {
+    var nodes = Array.prototype.slice.call(c.querySelectorAll("pre.mermaid"));
+    if (!nodes.length) return;
+    if (!window.mermaid) { nodes.forEach(function (n) { mermaidFallback(n, "mermaid.min.js failed to load"); }); return; }
+    initMermaid(currentTheme());
+    window.__mdliveMermaidBusy = true;
+    var chain = Promise.resolve();
+    nodes.forEach(function (node) {
+      chain = chain.then(function () {
+        if (!node.isConnected) return; // a newer render replaced the DOM
+        try {
+          return window.mermaid.run({ nodes: [node], suppressErrors: false })
+            .then(function () { if (!node.querySelector("svg")) mermaidFallback(node, "no diagram produced"); })
+            .catch(function (e) { mermaidFallback(node, e); });
+        } catch (e) { mermaidFallback(node, e); }
+      }).catch(function () {});
+    });
+    chain.then(function () { window.__mdliveMermaidBusy = false; });
+  }
+  // Theme toggle: rebuild every diagram (rendered or errored) from its source.
+  function rerenderMermaid() {
+    var c = document.getElementById("content");
+    var hosts = Array.prototype.slice.call(c.querySelectorAll("[data-mermaid-src]"));
+    if (!hosts.length) return;
+    hosts.forEach(function (h) {
+      if (h.parentNode) h.parentNode.replaceChild(mermaidHost(h.getAttribute("data-mermaid-src") || ""), h);
+    });
+    renderMermaid(c);
   }
 
   // Find (V8 / DEC-V13): JS highlight + count (native WKWebView.find gives no count).
@@ -151,9 +239,13 @@
   // Theme toggle (DEC-V1): default/no-attr = dark; "light" sets the attribute and
   // swaps the hljs stylesheet (the light sheet/link is added in V6).
   function applyTheme(mode) {
-    document.documentElement.setAttribute("data-theme", mode === "light" ? "light" : "dark");
+    var next = mode === "light" ? "light" : "dark";
+    var changed = currentTheme() !== next || document.documentElement.getAttribute("data-theme") === null;
+    document.documentElement.setAttribute("data-theme", next);
     var dark = document.getElementById("hljs-dark"), light = document.getElementById("hljs-light");
     if (dark && light) { dark.disabled = (mode === "light"); light.disabled = (mode !== "light"); }
+    // Mermaid colours are baked into the SVG, so a theme change re-renders diagrams.
+    if (changed && __mermaidTheme !== null && __mermaidTheme !== next) rerenderMermaid();
   }
 
   // Apply all view-side settings (DEC-V2). Idempotent.

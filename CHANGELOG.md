@@ -1,5 +1,8 @@
 # MDLive: Changelog / Work Log
 
+## 2026-09-22
+- **Mermaid diagrams, offline:** fenced ` ```mermaid ` blocks render to SVG via a vendored Mermaid 11.17.2 (`web/mermaid.min.js`, sha256 `581ed7d7…90eb8`), initialised once with `startOnLoad: false` and `securityLevel: 'strict'`; highlight.js skips them. The Mermaid theme follows Dark/Light and a theme toggle re-renders every diagram from its stored source. A diagram that fails to parse keeps its fenced source with a one-line `Mermaid error:` notice above it. New `sample/mermaid.md`, `web-tests/mermaid-test.sh` (headless WKWebView via `MDLIVE_SELFTEST`, 6 checks), readback gains `mermaidSvg`/`mermaidErrors`, self-test waits for async rendering. 32 XCTests green.
+
 ## 2026-06-25
 - **Recent Files on the home screen:** `EmptyStateView` gains a "Recent" grid (thumbnail + filename, click-to-open) below the Open button, shown when recents exist. Thumbnails via `QLThumbnailGenerator` with an instant `NSWorkspace` file-icon fallback; moved/deleted files filtered out (`RecentFiles.existing`). Tests: `computeList` (dedupe/order/cap), `.existing` filter, `fileIcon`, 31 XCTests green.
 - Distribution still blocked on Apple Developer Program activation (enrolled 06-24; account not yet showing paid locally, only a free Personal Team + Apple Development cert). Ad-hoc share build at `/Users/Shared/MDLive.zip`.
