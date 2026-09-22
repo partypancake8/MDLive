@@ -127,18 +127,55 @@
     box.appendChild(msg); box.appendChild(pre);
     if (node.parentNode) node.parentNode.replaceChild(box, node);
   }
+  // Sizing follows the Mermaid Live Editor / docs practice rather than the
+  // library default: useMaxWidth is OFF for every diagram type, so the SVG keeps
+  // its natural pixel size (width/height attributes, no width:100%) and a wide
+  // diagram scrolls horizontally inside its host, like a wide code block or
+  // table, instead of being scaled down until the labels are unreadable. Text
+  // stays at the page's base 16px (themeVariables.fontSize + the per-diagram
+  // font sizes), so ⌘+/- page zoom scales diagrams with the rest of the page.
+  var MERMAID_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif';
+  var MERMAID_TYPES = ["flowchart", "sequence", "gantt", "journey", "class", "state", "er", "pie",
+    "requirement", "mindmap", "timeline", "gitGraph", "c4", "sankey", "xyChart", "quadrantChart",
+    "block", "packet", "architecture", "radar", "treemap", "kanban"];
+  function mermaidConfig(theme) {
+    var cfg = {
+      startOnLoad: false,
+      securityLevel: "strict",
+      suppressErrorRendering: true,
+      theme: theme === "light" ? "default" : "dark",
+      fontFamily: MERMAID_FONT,
+      fontSize: 16,
+      themeVariables: { fontSize: "16px", fontFamily: MERMAID_FONT }
+    };
+    MERMAID_TYPES.forEach(function (t) { cfg[t] = { useMaxWidth: false }; });
+    cfg.sequence.messageFontSize = 16;
+    cfg.sequence.actorFontSize = 16;
+    cfg.sequence.noteFontSize = 14;
+    cfg.sequence.messageFontFamily = cfg.sequence.actorFontFamily = cfg.sequence.noteFontFamily = MERMAID_FONT;
+    return cfg;
+  }
   function initMermaid(theme) {
     if (!window.mermaid || __mermaidTheme === theme) return;
     try {
-      window.mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: "strict",
-        suppressErrorRendering: true,
-        theme: theme === "light" ? "default" : "dark",
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
-      });
+      window.mermaid.initialize(mermaidConfig(theme));
       __mermaidTheme = theme;
     } catch (e) {}
+  }
+  // "Fit width" toggle: only offered when the natural-size SVG is wider than
+  // its host. Toggles a class that lets the SVG shrink to the column (viewBox
+  // scaling); the default stays natural size + horizontal scroll.
+  function addFitToggle(node) {
+    var svg = node.querySelector("svg");
+    if (!svg || node.querySelector(".mermaid-fit")) return;
+    if (svg.getBoundingClientRect().width <= node.clientWidth + 16) return;
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.className = "mermaid-fit"; btn.textContent = "Fit width";
+    btn.addEventListener("click", function () {
+      var fit = node.classList.toggle("fit");
+      btn.textContent = fit ? "Actual size" : "Fit width";
+    });
+    node.insertBefore(btn, node.firstChild);
   }
   function renderMermaid(c) {
     var nodes = Array.prototype.slice.call(c.querySelectorAll("pre.mermaid"));
@@ -152,7 +189,7 @@
         if (!node.isConnected) return; // a newer render replaced the DOM
         try {
           return window.mermaid.run({ nodes: [node], suppressErrors: false })
-            .then(function () { if (!node.querySelector("svg")) mermaidFallback(node, "no diagram produced"); })
+            .then(function () { if (!node.querySelector("svg")) mermaidFallback(node, "no diagram produced"); else addFitToggle(node); })
             .catch(function (e) { mermaidFallback(node, e); });
         } catch (e) { mermaidFallback(node, e); }
       }).catch(function () {});
