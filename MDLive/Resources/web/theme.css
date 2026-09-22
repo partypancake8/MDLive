@@ -101,3 +101,10 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); }
 /* Find highlights (V8) */
 #content mark.mdlive-hit { background: rgba(255, 211, 61, 0.35); color: inherit; border-radius: 2px; }
 #content mark.mdlive-hit-active { background: #ffd33d; color: #000; }
+
+/* Mermaid diagrams: the SVG carries its own theme colours, so drop the code-block chrome */
+#content pre.mermaid { background: transparent; border: none; padding: 8px 0; text-align: center; overflow-x: auto; }
+#content pre.mermaid svg { max-width: 100%; height: auto; }
+#content .mermaid-error { margin: 1em 0; }
+#content .mermaid-error-msg { color: #f85149; font-size: 0.9em; margin-bottom: 4px; }
+[data-theme="light"] #content .mermaid-error-msg { color: #cf222e; }

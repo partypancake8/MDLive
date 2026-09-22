@@ -28,6 +28,7 @@ it.
 - Syntax highlighting for fenced code blocks
 - GitHub style tables, task lists, footnotes, definition lists, strikethrough
 - LaTeX math with KaTeX, off by default, works offline
+- Mermaid diagrams from fenced `mermaid` blocks, themed to match, works offline
 - Dark and light themes, font zoom, and an adjustable content width
 - Find, with a match count
 - An outline sidebar built from the document headings
@@ -103,7 +104,7 @@ inert.
 ## How it works
 
 Both versions share the same renderer. `MDLive/Resources/web/` holds
-markdown-it, highlight.js and KaTeX, all vendored and pinned, and `index.html`
+markdown-it 14.1.0, highlight.js, KaTeX 0.16.11 and Mermaid 11.17.2, all vendored and pinned, and `index.html`
 defines the entire contract: a `render()` function, a `ready` handshake, and a
 few message handlers for links, the outline and scroll position.
 
@@ -145,6 +146,9 @@ The Mac side has an equivalent harness plus XCTest suites:
 MDLIVE_SELFTEST=/tmp/out.json MDLIVE_OPEN="$PWD/sample/hello.md" \
   /Applications/MDLive.app/Contents/MacOS/MDLive
 ```
+
+`web-tests/run.sh` drives the same harness against `sample/mermaid.md` and asserts
+that each valid diagram produced an `svg` and the broken one shows its error line.
 
 `sample/` holds the fixtures, including `kitchen-sink.md`, which exercises every
 supported element.

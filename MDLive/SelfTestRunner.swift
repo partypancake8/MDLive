@@ -29,15 +29,29 @@ final class SelfTestRunner {
         r.onReady = { [weak self] in
             r.render(markdown: md, baseDir: baseDir, scrollPct: 0)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                r.readback { json in
-                    self?.finish(json ?? "", outPath: outPath, code: json == nil ? 3 : 0)
-                }
+                self?.readbackWhenSettled(r, outPath: outPath, attempts: 0)
             }
         }
         r.loadShell()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
             self?.finish("TIMEOUT", outPath: outPath, code: 2)
+        }
+    }
+
+    /// Mermaid renders asynchronously after `render()`; poll (up to ~5 s) until the
+    /// page reports it is no longer busy so the readback sees the final DOM.
+    private func readbackWhenSettled(_ r: WebKitRenderer, outPath: String, attempts: Int) {
+        r.webView.evaluateJavaScript("!!window.__mdliveMermaidBusy") { [weak self] v, _ in
+            if (v as? Bool) == true && attempts < 50 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self?.readbackWhenSettled(r, outPath: outPath, attempts: attempts + 1)
+                }
+                return
+            }
+            r.readback { json in
+                self?.finish(json ?? "", outPath: outPath, code: json == nil ? 3 : 0)
+            }
         }
     }
 
