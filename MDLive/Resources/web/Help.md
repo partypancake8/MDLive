@@ -16,4 +16,5 @@ Theme (Dark / Light), content width, font scale, auto-refresh + polling speed, L
 
 ## Notes
 - MDLive never edits your file, it's preview-only.
+- Fenced ```mermaid blocks render as diagrams; a bad one shows its source with the error above it.
 - Everything runs offline; there are no network calls.
