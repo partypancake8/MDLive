@@ -70,3 +70,9 @@ Source of truth for *what* to build: `PRD.md`. This file tracks *where the build
 
 ## Next pass resumes at
 **Steps 6-11 complete & verified (2026-06-24).** MDLive now live-refreshes on external edits: the core product works. Remaining polish: Step 4 (kitchen-sink theme/element pass), Step 5 (mdlive-img DEC-13 path validation + image fixtures), and Step 11 ship tier (Developer-ID notarization: needs Apple Developer ID). Test instrumentation (`MDLIVE_GUI_MARKER` render/window/deinit markers) is env-gated and left in for future headless verification.
+
+## 2026-10-08: editor + autosave (0.2.0)
+- Mac app is a Markdown editor too: `EditorView` (NSTextView) beside the preview, three layouts on `⌘1`/`⌘2`/`⌘3`, live re-render while typing.
+- Autosave (1 s debounce plus close/quit/resign-key/layout switch), atomic writes that keep line endings, watcher self-write suppression, Reload / Keep Mine conflict bar, `Settings.autosave` toggle with `⌘S` and close prompts when off.
+- New / Save As / Revert, Save As re-keys `WindowManager`, Info.plist role Editor for md, markdown, txt.
+- Verified headlessly: `MDLIVE_EDIT_SELFTEST` gate, `MDLIVE_SELFTEST` gate, web-tests, `AutosaveTests` plus every earlier suite. Typing feel, the conflict bar and save panels still want a hands-on look.
