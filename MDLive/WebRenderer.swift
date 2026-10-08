@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// Document window content: optional TOC sidebar + the WebView + error overlay.
 /// The model owns the renderer, so the sidebar can drive it and menus can reach it.
 struct DocumentView: View {
-    @ObservedObject var model: PreviewModel
+    @ObservedObject var model: DocumentModel
 
     var body: some View {
         HSplitView {
@@ -44,7 +44,7 @@ struct WebHost: NSViewRepresentable {
 }
 
 /// Reads the file, owns the renderer + watcher, holds error/outline/sidebar state.
-final class PreviewModel: ObservableObject {
+final class DocumentModel: ObservableObject {
     let url: URL
     let renderer = WebKitRenderer()
     @Published var markdown: String = ""
@@ -98,7 +98,7 @@ final class PreviewModel: ObservableObject {
     deinit {
         flushSave()
         if let o = terminateObserver { NotificationCenter.default.removeObserver(o) }
-        NSLog("MDLive.PreviewModel.deinit %@", url.lastPathComponent)
+        NSLog("MDLive.DocumentModel.deinit %@", url.lastPathComponent)
     }
 
     func reload() { flushSave(); load() } // ⌘R

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// In-document find bar (V8/DEC-V13). Drives the JS highlighter via the model.
 struct FindBar: View {
-    @ObservedObject var model: PreviewModel
+    @ObservedObject var model: DocumentModel
     @FocusState private var focused: Bool
 
     var body: some View {

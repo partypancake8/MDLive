@@ -66,7 +66,7 @@ final class EditingTests: XCTestCase {
     func testAutosaveDebouncesToOneWriteOfTheLastText() throws {
         let file = dir.appendingPathComponent("a.md")
         try "# Title\r\n\r\nbody\r\n".write(to: file, atomically: false, encoding: .utf8)
-        let model = PreviewModel(url: file)
+        let model = DocumentModel(url: file)
         model.saveDebounce = 0.3
 
         model.editDidChange("# Title\n\nbody x\n")
@@ -86,7 +86,7 @@ final class EditingTests: XCTestCase {
         let file = dir.appendingPathComponent("b.md")
         try "same\n".write(to: file, atomically: false, encoding: .utf8)
         let before = try FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate] as? Date
-        let model = PreviewModel(url: file)
+        let model = DocumentModel(url: file)
         model.saveDebounce = 0.1
         model.editDidChange("same")
         pump(0.4)
@@ -98,7 +98,7 @@ final class EditingTests: XCTestCase {
     func testPendingEditWinsOverExternalChange() throws {
         let file = dir.appendingPathComponent("c.md")
         try "v0\n".write(to: file, atomically: false, encoding: .utf8)
-        let model = PreviewModel(url: file)
+        let model = DocumentModel(url: file)
         model.saveDebounce = 1.0
         model.editDidChange("mine\n")
         try "theirs\n".write(to: file, atomically: false, encoding: .utf8)
@@ -110,7 +110,7 @@ final class EditingTests: XCTestCase {
     func testFlushSaveWritesImmediately() throws {
         let file = dir.appendingPathComponent("d.md")
         try "v0\n".write(to: file, atomically: false, encoding: .utf8)
-        let model = PreviewModel(url: file)
+        let model = DocumentModel(url: file)
         model.saveDebounce = 30
         model.editDidChange("v1\n")
         model.flushSave()
@@ -141,7 +141,7 @@ final class EditingTests: XCTestCase {
     func testModelDoesNotReRenderItsOwnSave() throws {
         let file = dir.appendingPathComponent("f.md")
         try "v0\n".write(to: file, atomically: false, encoding: .utf8)
-        let model = PreviewModel(url: file)
+        let model = DocumentModel(url: file)
         model.saveDebounce = 0.1
         let firstLoad = model.lastUpdated
         model.editDidChange("v1\n")

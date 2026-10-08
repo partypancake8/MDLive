@@ -2,13 +2,13 @@ import AppKit
 import SwiftUI
 import Combine
 
-/// One NSWindow per file URL, deduped. Owns each window's PreviewModel (and thus
+/// One NSWindow per file URL, deduped. Owns each window's DocumentModel (and thus
 /// its FileWatcher), so closing a window tears the watcher down (Step 10).
 /// All entry points run on the main thread (AppKit / WK message handlers).
 final class WindowManager: NSObject, NSWindowDelegate {
     static let shared = WindowManager()
 
-    private struct Doc { let window: NSWindow; let model: PreviewModel }
+    private struct Doc { let window: NSWindow; let model: DocumentModel }
     private var docs: [URL: Doc] = [:]
     private var emptyWindow: NSWindow?
     private var settingsWindow: NSWindow?
@@ -53,7 +53,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
             marker("focus \(key.path) total=\(docs.count)")
             return
         }
-        let model = PreviewModel(url: key)
+        let model = DocumentModel(url: key)
         let win = makeWindow(title: key.lastPathComponent)
         win.contentViewController = NSHostingController(rootView: DocumentView(model: model))
         win.delegate = self
@@ -121,7 +121,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         }
     }
 
-    private func front() -> (url: URL, model: PreviewModel)? {
+    private func front() -> (url: URL, model: DocumentModel)? {
         guard let w = NSApp.keyWindow ?? NSApp.mainWindow,
               let e = docs.first(where: { $0.value.window == w }) else { return nil }
         return (e.key, e.value.model)

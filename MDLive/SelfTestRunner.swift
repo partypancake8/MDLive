@@ -65,7 +65,7 @@ final class SelfTestRunner {
 
 /// Headless edit gate. Env MDLIVE_EDIT_SELFTEST=<json out> + MDLIVE_OPEN=<file>,
 /// optional MDLIVE_EDIT_TEXT=<text> and MDLIVE_EDIT_SELECTOR=<css, default "p">.
-/// Opens the file offscreen through the real PreviewModel (editing on, autosave
+/// Opens the file offscreen through the real DocumentModel (editing on, autosave
 /// on), puts the caret at the end of the first matching element, types the text
 /// through the page's own editing path (execCommand insertText, so the same
 /// input handler, block splice and autosave run), waits out the debounce, writes
@@ -73,14 +73,14 @@ final class SelfTestRunner {
 /// caret, so the file must stay untouched (saveCount 0).
 final class EditSelfTestRunner {
     static let shared = EditSelfTestRunner()
-    private var model: PreviewModel?
+    private var model: DocumentModel?
     private var window: NSWindow?
     private var done = false
     private var target: Any = NSNull()
 
     func run(mdPath: String, outPath: String, text: String?, selector: String) {
         let url = URL(fileURLWithPath: mdPath).standardizedFileURL
-        let m = PreviewModel(url: url)
+        let m = DocumentModel(url: url)
         model = m
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 800),
                            styleMask: [.borderless], backing: .buffered, defer: false)

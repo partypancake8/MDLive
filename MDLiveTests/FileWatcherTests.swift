@@ -73,9 +73,9 @@ final class FileWatcherTests: XCTestCase {
         let file = dir.appendingPathComponent("d.md")
         try write(file, "x")
 
-        weak var weakModel: PreviewModel?
+        weak var weakModel: DocumentModel?
         autoreleasepool {
-            let model = PreviewModel(url: file)
+            let model = DocumentModel(url: file)
             weakModel = model
             XCTAssertNotNil(weakModel)
         }
@@ -84,7 +84,7 @@ final class FileWatcherTests: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { drained.fulfill() }
         wait(for: [drained], timeout: 2)
 
-        XCTAssertNil(weakModel, "PreviewModel + FileWatcher must deallocate when released")
+        XCTAssertNil(weakModel, "DocumentModel + FileWatcher must deallocate when released")
     }
 
     /// V3: a disabled watcher (auto-refresh off) emits nothing even after edits.
