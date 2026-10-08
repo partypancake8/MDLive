@@ -27,10 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             SelfTestRunner.shared.run(mdPath: open, outPath: out)
             return
         }
-        if let out = env["MDLIVE_EDIT_SELFTEST"], let open = env["MDLIVE_OPEN"] {
-            EditSelfTestRunner.shared.run(mdPath: open, text: env["MDLIVE_EDIT_TEXT"] ?? "", outPath: out)
-            return
-        }
 
         buildMainMenu()
         // SwiftUI installs its OWN default main menu (only "Enter Full Screen" in View,
@@ -64,11 +60,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for url in urls { WindowManager.shared.open(url) }
     }
 
-    // Autosave everything on quit; ask about buffers autosave can't cover.
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        WindowManager.shared.prepareToQuit() ? .terminateNow : .terminateCancel
-    }
-
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
 
     // MARK: Menu (Step 8)
@@ -99,16 +90,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // File
         let fileItem = NSMenuItem(); main.addItem(fileItem)
         let fileMenu = NSMenu(title: "File")
-        addCmd(fileMenu, "newDocument", #selector(newDocument))
         addCmd(fileMenu, "open", #selector(openDocument))
         let recentItem = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
         recentMenu.delegate = self; recentItem.submenu = recentMenu
         fileMenu.addItem(recentItem)
-        fileMenu.addItem(.separator())
-        fileMenu.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        addCmd(fileMenu, "save", #selector(saveDocument))
-        addCmd(fileMenu, "saveAs", #selector(saveDocumentAs))
-        add(fileMenu, "Revert to Saved", #selector(revertDocument), "")
         fileMenu.addItem(.separator())
         addCmd(fileMenu, "copyPath", #selector(copyPath))
         addCmd(fileMenu, "reveal", #selector(revealInFinder))
@@ -116,18 +101,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         addCmd(fileMenu, "print", #selector(printDocument))
         add(fileMenu, "Export as PDF…", #selector(exportPDF), "")
         add(fileMenu, "Export as HTML…", #selector(exportHTML), "")
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileItem.submenu = fileMenu
 
-        // Edit (standard editing via the responder chain → editor NSTextView or WebView)
+        // Edit (find + standard copy/select via the responder chain → WebView)
         let editItem = NSMenuItem(); main.addItem(editItem)
         let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
-        redo.keyEquivalentModifierMask = [.command, .shift]
-        editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenu.addItem(.separator())
         addCmd(editMenu, "find", #selector(findInDocument))
@@ -138,10 +119,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // View
         let viewItem = NSMenuItem(); main.addItem(viewItem)
         let viewMenu = NSMenu(title: "View")
-        addCmd(viewMenu, "modePreview", #selector(modePreview))
-        addCmd(viewMenu, "modeSplit", #selector(modeSplit))
-        addCmd(viewMenu, "modeEditor", #selector(modeEditor))
-        viewMenu.addItem(.separator())
         addCmd(viewMenu, "refresh", #selector(refreshDocument))
         viewMenu.addItem(.separator())
         addCmd(viewMenu, "actualSize", #selector(zoomReset))
@@ -194,13 +171,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSApp.sendAction(Selector((sel)), to: nil, from: nil) { return }
     }
     @objc private func openDocument() { EmptyStateView.openPanel() }
-    @objc private func newDocument() { WindowManager.shared.newDocument() }
-    @objc private func saveDocument() { WindowManager.shared.saveFront() }
-    @objc private func saveDocumentAs() { WindowManager.shared.saveAsFront() }
-    @objc private func revertDocument() { WindowManager.shared.revertFront() }
-    @objc private func modePreview() { WindowManager.shared.setViewModeFront(.preview) }
-    @objc private func modeSplit() { WindowManager.shared.setViewModeFront(.split) }
-    @objc private func modeEditor() { WindowManager.shared.setViewModeFront(.editor) }
     @objc private func refreshDocument() { WindowManager.shared.refreshFront() }
     @objc private func revealInFinder() { WindowManager.shared.revealFront() }
     @objc private func copyPath() { WindowManager.shared.copyFrontPath() }

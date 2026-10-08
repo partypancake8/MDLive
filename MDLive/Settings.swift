@@ -18,12 +18,6 @@ final class Settings: ObservableObject {
     @Published var customCSSPath: String { didSet { d.set(customCSSPath, forKey: "mdlive.customCSSPath") } }
     @Published var mathEnabled: Bool { didSet { d.set(mathEnabled, forKey: "mdlive.mathEnabled") } }
     @Published var floatByDefault: Bool { didSet { d.set(floatByDefault, forKey: "mdlive.floatByDefault") } }
-    // Editing (0.2.0)
-    @Published var autosave: Bool { didSet { d.set(autosave, forKey: "mdlive.autosave") } }
-    @Published var viewMode: String { didSet { d.set(viewMode, forKey: "mdlive.viewMode") } }  // preview|split|editor
-
-    static let defaultAutosave = true
-    static let defaultViewMode = "preview"
 
     private init() {
         theme = d.string(forKey: "mdlive.theme") ?? "dark"
@@ -34,8 +28,6 @@ final class Settings: ObservableObject {
         customCSSPath = d.string(forKey: "mdlive.customCSSPath") ?? ""
         mathEnabled = (d.object(forKey: "mdlive.mathEnabled") as? Bool) ?? false
         floatByDefault = (d.object(forKey: "mdlive.floatByDefault") as? Bool) ?? false
-        autosave = (d.object(forKey: "mdlive.autosave") as? Bool) ?? Settings.defaultAutosave
-        viewMode = d.string(forKey: "mdlive.viewMode") ?? Settings.defaultViewMode
     }
 
     // Derived mappings
@@ -54,7 +46,6 @@ final class Settings: ObservableObject {
         theme = "dark"; fontScale = 1.0; contentWidth = "medium"
         autoRefresh = true; pollSpeed = "normal"
         customCSSPath = ""; mathEnabled = false; floatByDefault = false
-        autosave = Settings.defaultAutosave; viewMode = Settings.defaultViewMode
     }
 
     /// The opts payload handed to JS `applySettings` (§3.2). Pure → unit-testable.
