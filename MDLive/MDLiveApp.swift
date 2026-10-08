@@ -23,6 +23,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let env = ProcessInfo.processInfo.environment
+        if let out = env["MDLIVE_EDIT_SELFTEST"], let open = env["MDLIVE_OPEN"] {
+            EditSelfTestRunner.shared.run(mdPath: open, outPath: out,
+                                          text: env["MDLIVE_EDIT_TEXT"], selector: env["MDLIVE_EDIT_SELECTOR"] ?? "p")
+            return
+        }
         if let out = env["MDLIVE_SELFTEST"], let open = env["MDLIVE_OPEN"] {
             SelfTestRunner.shared.run(mdPath: open, outPath: out)
             return

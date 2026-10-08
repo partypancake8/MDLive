@@ -59,6 +59,17 @@ final class FileWatcher {
         debounce?.cancel(); debounce = nil
     }
 
+    /// Call right after the app itself has written the file (autosave). The new
+    /// (mtime, size) becomes the known state, so the app's own write is not
+    /// bounced back as `.changed` and re-rendered under the caret.
+    func noteSelfWrite() {
+        queue.sync {
+            debounce?.cancel(); debounce = nil
+            let s = FileWatcher.probe(fileURL)
+            exists = s.exists; mtime = s.mtime; size = s.size
+        }
+    }
+
     private func startStream() {
         var context = FSEventStreamContext(version: 0,
             info: Unmanaged.passUnretained(self).toOpaque(),

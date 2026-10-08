@@ -62,3 +62,81 @@ final class SelfTestRunner {
         exit(code)
     }
 }
+
+/// Headless edit gate. Env MDLIVE_EDIT_SELFTEST=<json out> + MDLIVE_OPEN=<file>,
+/// optional MDLIVE_EDIT_TEXT=<text> and MDLIVE_EDIT_SELECTOR=<css, default "p">.
+/// Opens the file offscreen through the real PreviewModel (editing on, autosave
+/// on), puts the caret at the end of the first matching element, types the text
+/// through the page's own editing path (execCommand insertText, so the same
+/// input handler, block splice and autosave run), waits out the debounce, writes
+/// a JSON readback and exits 0. With no text it only focuses and places the
+/// caret, so the file must stay untouched (saveCount 0).
+final class EditSelfTestRunner {
+    static let shared = EditSelfTestRunner()
+    private var model: PreviewModel?
+    private var window: NSWindow?
+    private var done = false
+    private var target: Any = NSNull()
+
+    func run(mdPath: String, outPath: String, text: String?, selector: String) {
+        let url = URL(fileURLWithPath: mdPath).standardizedFileURL
+        let m = PreviewModel(url: url)
+        model = m
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 800),
+                           styleMask: [.borderless], backing: .buffered, defer: false)
+        win.contentView = m.renderer.webView
+        win.orderOut(nil)
+        window = win
+
+        m.renderer.onReady = { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self?.edit(text: text, selector: selector, outPath: outPath) }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 9.5) { [weak self] in
+            self?.finish(["error": "TIMEOUT"], outPath: outPath, code: 2)
+        }
+    }
+
+    private func edit(text: String?, selector: String, outPath: String) {
+        guard let m = model else { return }
+        let js = "JSON.stringify(MDLiveEdit.selfTest(\(jsonString(selector)), \(text.map(jsonString) ?? "null")))"
+        m.renderer.webView.evaluateJavaScript(js) { [weak self] v, err in
+            guard let self else { return }
+            if let s = v as? String, let d = try? JSONSerialization.jsonObject(with: Data(s.utf8)) { self.target = d }
+            else { self.target = ["error": err.map { "\($0)" } ?? "no result"] }
+            // Debounce plus settling time for the write and the watcher.
+            let wait = (text?.isEmpty == false) ? m.saveDebounce + 1.2 : 1.5
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { self.readback(outPath: outPath) }
+        }
+    }
+
+    private func readback(outPath: String) {
+        guard let m = model else { return }
+        m.renderer.webView.evaluateJavaScript("JSON.stringify(window.__mdliveEditInfo || {})") { [weak self] v, _ in
+            var info: [String: Any] = [:]
+            if let s = v as? String, let d = (try? JSONSerialization.jsonObject(with: Data(s.utf8))) as? [String: Any] { info = d }
+            let out: [String: Any] = [
+                "savedPath": m.saveCount > 0 ? m.url.path : NSNull(),
+                "saveCount": m.saveCount,
+                "bytesWritten": m.bytesWritten,
+                "changedBlocks": info["changedBlocks"] ?? 0,
+                "posts": info["posts"] ?? 0,
+                "blocks": info["blocks"] ?? 0,
+                "target": self?.target ?? NSNull(),
+            ]
+            self?.finish(out, outPath: outPath, code: 0)
+        }
+    }
+
+    private func finish(_ obj: [String: Any], outPath: String, code: Int32) {
+        if done { return }
+        done = true
+        if let d = try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys]) {
+            try? d.write(to: URL(fileURLWithPath: outPath), options: .atomic)
+        }
+        exit(code)
+    }
+
+    private func jsonString(_ s: String) -> String {
+        (try? JSONEncoder().encode(s)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
+    }
+}

@@ -143,6 +143,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         if w == emptyWindow { emptyWindow = nil; return }
         if w == settingsWindow { settingsWindow = nil; return }
         if let key = docs.first(where: { $0.value.window == w })?.key {
+            docs[key]?.model.flushSave() // write any edit still inside the autosave debounce
             docs.removeValue(forKey: key) // releases model → FileWatcher.deinit
         }
     }

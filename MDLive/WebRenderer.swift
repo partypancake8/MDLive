@@ -62,6 +62,18 @@ final class PreviewModel: ObservableObject {
     private var settingsCancellable: AnyCancellable?
     private var lastGood: String = ""
 
+    // In-place editing + autosave. The page posts the full new Markdown on each
+    // real change; it is written ~1 s after the last one. `diskText` is what the
+    // file holds as far as MDLive knows (last read or last own write).
+    var saveDebounce: TimeInterval = 1.0
+    private(set) var saveCount = 0
+    private(set) var bytesWritten = 0
+    private(set) var hasPendingSave = false
+    private var pendingText: String?
+    private var saveWork: DispatchWorkItem?
+    private var diskText: String?
+    private var terminateObserver: NSObjectProtocol?
+
     init(url: URL) {
         self.url = url
         let baseDir = url.deletingLastPathComponent().path
@@ -69,6 +81,12 @@ final class PreviewModel: ObservableObject {
         renderer.onOutline = { [weak self] items in DispatchQueue.main.async { self?.outline = items } }
         renderer.onScroll = { ScrollMemory.save(url.path, $0) }          // V12 persist
         renderer.initialScrollPct = ScrollMemory.get(url.path)           // V12 restore on first render
+        renderer.editingEnabled = true
+        renderer.onEdit = { [weak self] text in self?.editDidChange(text) }
+        terminateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.flushSave()
+        }
         renderer.loadShell()
         load()
         makeWatcher()
@@ -77,9 +95,44 @@ final class PreviewModel: ObservableObject {
         }
     }
 
-    deinit { NSLog("MDLive.PreviewModel.deinit %@", url.lastPathComponent) }
+    deinit {
+        flushSave()
+        if let o = terminateObserver { NotificationCenter.default.removeObserver(o) }
+        NSLog("MDLive.PreviewModel.deinit %@", url.lastPathComponent)
+    }
 
-    func reload() { load() } // ⌘R
+    func reload() { flushSave(); load() } // ⌘R
+
+    // MARK: autosave
+
+    /// A real content change from the page: (re)start the debounce.
+    func editDidChange(_ text: String) {
+        pendingText = text
+        hasPendingSave = true
+        saveWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.flushSave() }
+        saveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + saveDebounce, execute: work)
+    }
+
+    /// Write the pending edit now (debounce fired, window closing, app quitting).
+    func flushSave() {
+        saveWork?.cancel(); saveWork = nil
+        hasPendingSave = false
+        guard let text = pendingText else { return }
+        pendingText = nil
+        let original = diskText ?? ""
+        let out = DocumentSaver.conform(text, to: original)
+        if out == original { return } // edited and put back: nothing to write
+        do {
+            bytesWritten = try DocumentSaver.write(out, to: url)
+            watcher?.noteSelfWrite()
+            diskText = out; markdown = out; lastGood = out
+            saveCount += 1
+        } catch {
+            NSLog("MDLive: autosave failed for %@: %@", url.path, error.localizedDescription)
+        }
+    }
 
     // Find (V8)
     func runFind() { renderer.find(findQuery) { [weak self] c, cur in DispatchQueue.main.async { self?.findCount = c; self?.findCurrent = cur } } }
@@ -95,7 +148,12 @@ final class PreviewModel: ObservableObject {
 
     private func handle(_ event: FileWatcher.Event) {
         switch event {
-        case .changed, .appeared: load()
+        case .changed, .appeared:
+            // An edit waiting to be saved wins over an outside change (last writer).
+            if hasPendingSave { return }
+            // Our own autosave coming back through the watcher: nothing to re-render.
+            if let d = diskText, let now = try? String(contentsOf: url, encoding: .utf8), now == d { return }
+            load()
         case .deleted: errorText = "Can't find this file, it may have been moved or deleted.\n\(url.path)"
         }
     }
@@ -110,7 +168,7 @@ final class PreviewModel: ObservableObject {
         }
         do {
             let s = try String(contentsOf: url, encoding: .utf8)
-            markdown = s; lastGood = s; errorText = nil; lastUpdated = Date()
+            markdown = s; lastGood = s; diskText = s; errorText = nil; lastUpdated = Date()
             renderer.render(markdown: s, baseDir: url.deletingLastPathComponent().path, scrollPct: 0)
         } catch {
             if lastGood.isEmpty { errorText = "This file isn't readable as text (UTF-8).\n\(url.path)" }

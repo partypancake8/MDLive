@@ -11,6 +11,10 @@ final class WebKitRenderer: NSObject, WKNavigationDelegate, WKScriptMessageHandl
     var onOutline: (([OutlineItem]) -> Void)?   // V10
     var onScroll: ((Double) -> Void)?           // V12
     var initialScrollPct: Double = 0            // V12, applied on the first render
+    /// In-place editing: when true the page is made contenteditable after `ready`
+    /// and every real content change arrives here as the full new Markdown text.
+    var editingEnabled = false
+    var onEdit: ((String) -> Void)?
     private var didFirstRender = false
     private let imageHandler = ImageSchemeHandler()
 
@@ -28,6 +32,7 @@ final class WebKitRenderer: NSObject, WKNavigationDelegate, WKScriptMessageHandl
         ucc.add(self, name: "link")
         ucc.add(self, name: "outline")
         ucc.add(self, name: "scroll")
+        ucc.add(self, name: "edit")
         webView.navigationDelegate = self
     }
 
@@ -95,6 +100,7 @@ final class WebKitRenderer: NSObject, WKNavigationDelegate, WKScriptMessageHandl
             ready = true
             flush()
             applyCurrentSettings()
+            if editingEnabled { webView.evaluateJavaScript("enableEditing();", completionHandler: nil) }
             onReady?()
         case "link":
             if let href = message.body as? String { onLink?(href) }
@@ -107,6 +113,8 @@ final class WebKitRenderer: NSObject, WKNavigationDelegate, WKScriptMessageHandl
             }
         case "scroll":
             if let p = message.body as? Double { onScroll?(p) }
+        case "edit":
+            if let text = message.body as? String { onEdit?(text) }
         default: break
         }
     }
