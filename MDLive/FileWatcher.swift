@@ -59,6 +59,21 @@ final class FileWatcher {
         debounce?.cancel(); debounce = nil
     }
 
+    /// Run an app-originated write (autosave, Save) so the watcher never reports
+    /// it back as an external change. The write runs on the watcher queue, so no
+    /// evaluate can interleave, and the baseline (mtime, size) is refreshed right
+    /// after it. Returns whatever the write closure returns.
+    @discardableResult
+    func performSelfWrite<T>(_ write: () throws -> T) rethrows -> T {
+        try queue.sync {
+            let result = try write()
+            let s = FileWatcher.probe(fileURL)
+            exists = s.exists; mtime = s.mtime; size = s.size
+            debounce?.cancel(); debounce = nil
+            return result
+        }
+    }
+
     private func startStream() {
         var context = FSEventStreamContext(version: 0,
             info: Unmanaged.passUnretained(self).toOpaque(),

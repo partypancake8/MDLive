@@ -10,6 +10,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             general.tabItem { Label("General", systemImage: "gearshape") }
+            editing.tabItem { Label("Editing", systemImage: "square.and.pencil") }
             refresh.tabItem { Label("Refresh", systemImage: "arrow.clockwise") }
             advanced.tabItem { Label("Advanced", systemImage: "slider.horizontal.3") }
             ShortcutsTab().tabItem { Label("Shortcuts", systemImage: "command") }
@@ -31,6 +32,20 @@ struct SettingsView: View {
                     Slider(value: $s.fontScale, in: 0.5...3.0, step: 0.1)
                     Text(String(format: "%.1f×", s.fontScale)).monospacedDigit().frame(width: 40, alignment: .trailing)
                 }
+            }
+            RestoreDefaultsRow()
+        }
+        .formStyle(.grouped)
+    }
+
+    private var editing: some View {
+        Form {
+            Toggle("Autosave edits", isOn: $s.autosave)
+            Text(s.autosave ? "Edits are written to the file about a second after you stop typing."
+                            : "Save with \u{2318}S. Closing a window with unsaved edits asks first.")
+                .font(.callout).foregroundStyle(.secondary)
+            Picker("New windows open in", selection: $s.viewMode) {
+                Text("Preview only").tag("preview"); Text("Editor and preview").tag("split"); Text("Editor only").tag("editor")
             }
             RestoreDefaultsRow()
         }

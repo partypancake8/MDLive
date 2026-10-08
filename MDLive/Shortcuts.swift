@@ -16,7 +16,10 @@ final class Shortcuts: ObservableObject {
     static let shared = Shortcuts()
 
     let commands: [ShortcutCommand] = [
+        .init(id: "newDocument", title: "New",             defaultKey: "n", defaultMods: [.command]),
         .init(id: "open",       title: "Open…",            defaultKey: "o", defaultMods: [.command]),
+        .init(id: "save",       title: "Save",             defaultKey: "s", defaultMods: [.command]),
+        .init(id: "saveAs",     title: "Save As…",         defaultKey: "s", defaultMods: [.command, .shift]),
         .init(id: "refresh",    title: "Refresh",          defaultKey: "r", defaultMods: [.command]),
         .init(id: "find",       title: "Find…",            defaultKey: "f", defaultMods: [.command]),
         .init(id: "findNext",   title: "Find Next",        defaultKey: "g", defaultMods: [.command]),
@@ -28,6 +31,9 @@ final class Shortcuts: ObservableObject {
         .init(id: "zoomOut",    title: "Zoom Out",         defaultKey: "-", defaultMods: [.command]),
         .init(id: "actualSize", title: "Actual Size",      defaultKey: "0", defaultMods: [.command]),
         .init(id: "outline",    title: "Show Outline",     defaultKey: "1", defaultMods: [.command, .option]),
+        .init(id: "modePreview", title: "Preview Only",    defaultKey: "1", defaultMods: [.command]),
+        .init(id: "modeSplit",  title: "Editor and Preview", defaultKey: "2", defaultMods: [.command]),
+        .init(id: "modeEditor", title: "Editor Only",      defaultKey: "3", defaultMods: [.command]),
         .init(id: "keepOnTop",  title: "Keep on Top",      defaultKey: "t", defaultMods: [.command, .control])
     ]
 
