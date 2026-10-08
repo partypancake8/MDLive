@@ -6,8 +6,9 @@ A small Markdown previewer that re-renders the moment the file changes on disk.
 
 It was built for working next to AI coding agents. When Claude Code or Codex
 edits a `.md` file, you see the new version straight away without touching
-anything. There is no editor, no vault, and no server. It opens a file and shows
-it.
+anything. There is no vault and no server. It opens a file and shows it, and
+if something needs fixing you can click anywhere in the page and type, like a
+Google Doc. Your change is autosaved straight back to the Markdown file.
 
 <table>
   <tr>
@@ -24,6 +25,10 @@ it.
 
 - Re-renders on every save, including atomic saves where the editor writes a
   temp file and renames it over the original
+- Click into the rendered page and type to edit it in place. Edits autosave
+  about a second after you stop typing, and only the lines of the blocks you
+  touched change in the file, so the rest of your Markdown stays byte for byte
+  what it was. Math and Mermaid diagrams are kept as they are
 - Keeps your scroll position across refreshes, so the page does not jump
 - Syntax highlighting for fenced code blocks
 - GitHub style tables, task lists, footnotes, definition lists, strikethrough
@@ -149,6 +154,10 @@ MDLIVE_SELFTEST=/tmp/out.json MDLIVE_OPEN="$PWD/sample/hello.md" \
 
 `web-tests/run.sh` drives the same harness against `sample/mermaid.md` and asserts
 that each valid diagram produced an `svg` and the broken one shows its error line.
+It also runs `web-tests/edit-test.sh`, which types into a paragraph, a list item,
+a code block, a table cell, a heading and a footnote of `sample/kitchen-sink.md`
+through `MDLIVE_EDIT_SELFTEST` and checks that the autosaved file changed only in
+those lines, and that just clicking in never rewrites the file.
 
 `sample/` holds the fixtures, including `kitchen-sink.md`, which exercises every
 supported element.

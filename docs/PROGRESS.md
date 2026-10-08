@@ -4,6 +4,8 @@ Source of truth for *what* to build: `PRD.md`. This file tracks *where the build
 
 **Status (EOD 2026-06-23):** PRD locked v2. App builds clean (Xcode 26, Swift 5 mode, unsigned), **installed at `/Applications/MDLive.app`**. hello.md renders correctly in the real WKWebView (headless self-test + live GUI window). Window-spawn bug fixed. **App icon added** (`Resources/MDLive.icns`, dark M⌄ mark). `README.md` written (day-1 summary). Launch: `open -a MDLive sample/hello.md`. **Next: Step 6 (live file watching): not yet built; app loads once on open.**
 
+**2026-10-08 (v0.2.0):** Round-1 editor pane, layouts, new shortcuts and editing settings reverted (back to d10a7b8). Replaced by in-place editing: click into the rendered page and type, autosaved 1 s later. Only the edited blocks are spliced back into the file by source line range (`web/edit.js`), unedited files are never rewritten, the app's own writes do not re-render. Verified headlessly by `MDLIVE_EDIT_SELFTEST`, `web-tests/edit-test.sh` and `EditingTests`.
+
 ## Step status
 | Step | Title | Status | Notes |
 |------|-------|--------|-------|
