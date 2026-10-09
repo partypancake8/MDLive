@@ -32,7 +32,9 @@ Google Doc. Your change is autosaved straight back to the Markdown file.
 - A Format menu for simple edits: bold, italic, strikethrough, inline code,
   Heading 1 to 3, body text, bulleted and numbered lists, and links. Each one
   toggles, so Bold on bold text takes it off and Body Text turns a heading back
-  into a paragraph, and the result is written back as plain Markdown
+  into a paragraph, and the result is written back as plain Markdown. With
+  nothing selected, formatting acts on the word under the cursor, or on what
+  you type next when the cursor is at a word boundary
 - The standard Edit menu: undo, redo, cut, copy, paste (always as plain text)
   and select all
 - Keeps your scroll position across refreshes, so the page does not jump

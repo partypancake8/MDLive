@@ -585,14 +585,17 @@
   }
   function selectRange(r) { var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
 
-  // A collapsed caret inside a word acts on that word.
+  // A collapsed caret strictly inside a word acts on that word, as in Docs.
+  // At a word boundary (right after or before a word, in a space or next to
+  // punctuation) nothing is selected and false comes back, so a bold or
+  // italic command only sets the typing style for what is typed next.
   function expandToWord() {
     var r = selRange();
-    if (!r || !r.collapsed || r.startContainer.nodeType !== 3) return !!r && !r.collapsed;
+    if (!r || !r.collapsed || r.startContainer.nodeType !== 3) return false;
     var t = r.startContainer.textContent, a = r.startOffset, b = a, w = /[\wÀ-￿'-]/;
+    if (a === 0 || a >= t.length || !w.test(t.charAt(a - 1)) || !w.test(t.charAt(a))) return false;
     while (a > 0 && w.test(t.charAt(a - 1))) a--;
     while (b < t.length && w.test(t.charAt(b))) b++;
-    if (a === b) return false;
     var nr = document.createRange();
     nr.setStart(r.startContainer, a); nr.setEnd(r.startContainer, b);
     selectRange(nr);
@@ -723,12 +726,15 @@
     // showed as a highlight, and in a one-word line that is the whole line.
     var block = r0.collapsed ? topBlock(r0.startContainer) : null;
     var at = block && block.nodeType === 1 ? textOffset(block, r0.startContainer, r0.startOffset) : null;
+    // At a word boundary Bold, Italic and Strikethrough run on the bare caret,
+    // which toggles WebKit's typing style. Moving the selection afterwards would
+    // clear that style, so the caret is left alone in that case.
     var ok = false, word = false;
-    if (INLINE[cmd]) { word = true; expandToWord(); ok = document.execCommand(INLINE[cmd]); }
+    if (INLINE[cmd]) { word = expandToWord(); ok = document.execCommand(INLINE[cmd]); }
     else if (cmd === "code") { word = true; expandToWord(); ok = toggleCode(); }
     else if (cmd === "link") { word = true; expandToWord(); ok = toggleLink(arg || ""); }
     else if (BLOCKS[cmd] || cmd === "bulletList" || cmd === "numberList") ok = blockCommand(cmd);
-    if (at !== null) {
+    if (at !== null && !(INLINE[cmd] && !word)) {
       if (word && block.parentNode === c) caretAtOffset(block, at);
       else { var s = window.getSelection(); if (s.rangeCount && !s.isCollapsed) s.collapseToEnd(); }
     }
@@ -758,16 +764,27 @@
     selectRange(r);
     return { ok: true, target: elOf(a[0]).tagName, selected: r.toString() };
   };
-  // Put a collapsed caret in the middle of the first occurrence of `word`.
-  E.caretInWord = function (word) {
+  // Put a collapsed caret in the middle of the first occurrence of `word`, or
+  // right after it when `where` is "end".
+  E.caretInWord = function (word, where) {
     var r = E.selectText(word);
     if (!r.ok) return r;
     var sel = window.getSelection(), rg = sel.getRangeAt(0);
+    if (where === "end") {
+      sel.collapseToEnd();
+      return { ok: true, target: r.target, collapsed: window.getSelection().isCollapsed };
+    }
     var n = rg.startContainer, at = rg.startOffset + Math.floor(word.length / 2);
     if (n.nodeType === 3 && at <= n.textContent.length) {
       var c = document.createRange(); c.setStart(n, at); c.collapse(true); selectRange(c);
     } else sel.collapseToStart();
     return { ok: true, target: r.target, collapsed: window.getSelection().isCollapsed };
+  };
+  // Type text at the caret through the normal editing path.
+  E.typeText = function (text) {
+    var c = contentRoot(); if (!c) return { ok: false };
+    if (document.activeElement !== c) c.focus();
+    return { ok: document.execCommand("insertText", false, text) };
   };
   // Run the real paste handler with HTML (plus its text) on the clipboard.
   E.testPaste = function (html) {

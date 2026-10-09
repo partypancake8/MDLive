@@ -90,6 +90,13 @@ fmt "Bulleted List on a list item unwraps it" '"bullet one" in N and "- bullet o
 run_env "Paste of rich text lands as plain text" '"pasted-rich text" in "\n".join(N) and "<b>" not in "\n".join(N) and len(removed) == 1' MDLIVE_EDIT_PASTE_HTML='<b>pasted-rich</b> text'
 run_env "Undo from the Edit menu removes typed text" 'info.get("undoWorked") is True and "undo-probe-token" not in "\n".join(N)' MDLIVE_EDIT_UNDO=1
 
+# Cmd+B with a plain caret: strictly inside a word bolds that word; at a word
+# boundary it only bolds what is typed next and leaves the file alone.
+key() { run_env "$1" "$2" MDLIVE_EDIT_CARET_WORD="$3" MDLIVE_EDIT_CARET_AT="$4" MDLIVE_EDIT_KEY="$5"; }
+key "Cmd+B at the end of a word changes nothing" 'changed == [] and mtime_untouched and info.get("selectionSettled") == ""' paragraph end cmd+b
+key "Cmd+B at the end of a word bolds what is typed next" 'removed == [P] and added == [P.replace("A paragraph", "A paragraph**X**", 1)]' paragraph end cmd+b,type:X
+key "Cmd+B inside a word still bolds the word" 'removed == [P] and added == [P.replace("A paragraph", "A **paragraph**", 1)]' paragraph middle cmd+b
+
 echo
 echo "$fails failed"
 rm -rf "$WORK"

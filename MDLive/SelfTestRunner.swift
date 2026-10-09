@@ -78,6 +78,10 @@ final class SelfTestRunner {
 ///   DocumentModel.format, the same path the Format menu uses.
 /// - MDLIVE_EDIT_PASTE_HTML=<html>: caret at the end of the first <p>, then a
 ///   paste event carrying that HTML goes through the page's real paste handler.
+/// - MDLIVE_EDIT_CARET_WORD=<text> (+ MDLIVE_EDIT_CARET_AT=end): collapsed caret
+///   in the middle of the text, or right after it with `end`.
+/// - MDLIVE_EDIT_KEY=<combo>[,<combo>...]: real key events; a `type:<text>`
+///   entry types that text through execCommand insertText instead.
 /// - MDLIVE_EDIT_UNDO=1: type a probe token, run the Edit menu's Undo item
 ///   through the responder chain, and report whether the token is gone.
 final class EditSelfTestRunner {
@@ -101,16 +105,18 @@ final class EditSelfTestRunner {
         var undo: Bool
         var caretWord: String? = nil
         var key: String? = nil
+        var caretAt: String? = nil
         var changes: Bool { text?.isEmpty == false || !formats.isEmpty || pasteHTML != nil || undo || key != nil }
     }
 
     func run(mdPath: String, outPath: String, text: String?, selector: String,
              selectWord: String? = nil, format: String? = nil, pasteHTML: String? = nil, undo: Bool = false,
-             caretWord: String? = nil, key: String? = nil) {
+             caretWord: String? = nil, key: String? = nil, caretAt: String? = nil) {
         let formats = (format ?? "").split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let plan = Plan(text: text, selector: selector, selectWord: selectWord,
-                        formats: formats, pasteHTML: pasteHTML, undo: undo, caretWord: caretWord, key: key)
+                        formats: formats, pasteHTML: pasteHTML, undo: undo, caretWord: caretWord, key: key,
+                        caretAt: caretAt)
         let url = URL(fileURLWithPath: mdPath).standardizedFileURL
         let m = DocumentModel(url: url)
         model = m
@@ -168,7 +174,8 @@ final class EditSelfTestRunner {
             return
         }
         if let word = plan.caretWord {
-            eval("MDLiveEdit.caretInWord(\(jsonString(word)))") { [weak self] t in
+            let at = plan.caretAt.map(jsonString) ?? "null"
+            eval("MDLiveEdit.caretInWord(\(jsonString(word)), \(at))") { [weak self] t in
                 guard let self else { return }
                 self.target = t ?? NSNull()
                 self.runKeysAndFormats(plan, afterEdit)
@@ -208,6 +215,17 @@ final class EditSelfTestRunner {
 
     private func runKeys(_ keys: [String], sent: [Bool], done: @escaping ([Bool]) -> Void) {
         guard let m = model, let first = keys.first else { done(sent); return }
+        if first.hasPrefix("type:") {
+            // Typed text goes through the page's normal editing path (insertText).
+            let text = String(first.dropFirst(5))
+            eval("MDLiveEdit.typeText(\(jsonString(text)))") { [weak self] r in
+                let ok = ((r as? [String: Any])?["ok"] as? Bool) ?? false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self?.runKeys(Array(keys.dropFirst()), sent: sent + [ok], done: done)
+                }
+            }
+            return
+        }
         let ok = sendKey(first, to: m)
         // The menu command reaches the page through evaluateJavaScript; let it land.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in

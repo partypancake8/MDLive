@@ -28,7 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                                           text: env["MDLIVE_EDIT_TEXT"], selector: env["MDLIVE_EDIT_SELECTOR"] ?? "p",
                                           selectWord: env["MDLIVE_EDIT_SELECT_WORD"], format: env["MDLIVE_EDIT_FORMAT"],
                                           pasteHTML: env["MDLIVE_EDIT_PASTE_HTML"], undo: env["MDLIVE_EDIT_UNDO"] == "1",
-                                          caretWord: env["MDLIVE_EDIT_CARET_WORD"], key: env["MDLIVE_EDIT_KEY"])
+                                          caretWord: env["MDLIVE_EDIT_CARET_WORD"], key: env["MDLIVE_EDIT_KEY"],
+                                          caretAt: env["MDLIVE_EDIT_CARET_AT"])
             return
         }
         if let out = env["MDLIVE_HISTORY_SELFTEST"], let open = env["MDLIVE_OPEN"] {
