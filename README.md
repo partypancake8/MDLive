@@ -2,13 +2,14 @@
 
 ### [Install on macOS](#macos) &nbsp;·&nbsp; [Install on Linux](#linux)
 
-A small Markdown previewer that re-renders the moment the file changes on disk.
+A small Markdown previewer with simple editing that re-renders the moment the file changes on disk.
 
 It was built for working next to AI coding agents. When Claude Code or Codex
-edits a `.md` file, you see the new version straight away without touching
-anything. There is no vault and no server. It opens a file and shows it, and
-if something needs fixing you can click anywhere in the page and type, like a
-Google Doc. Your change is autosaved straight back to the Markdown file.
+edits a `.md` file, you see the new version straight away. There is no vault
+and no server. It opens a file and shows it. If something needs fixing, click
+anywhere in the page and type, like a Google Doc, and the change is autosaved
+straight back to the Markdown file. Editing is Mac only for now. The Linux port
+is still viewer only.
 
 <table>
   <tr>
