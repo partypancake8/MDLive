@@ -28,7 +28,19 @@ final class Shortcuts: ObservableObject {
         .init(id: "zoomOut",    title: "Zoom Out",         defaultKey: "-", defaultMods: [.command]),
         .init(id: "actualSize", title: "Actual Size",      defaultKey: "0", defaultMods: [.command]),
         .init(id: "outline",    title: "Show Outline",     defaultKey: "1", defaultMods: [.command, .option]),
-        .init(id: "keepOnTop",  title: "Keep on Top",      defaultKey: "t", defaultMods: [.command, .control])
+        .init(id: "keepOnTop",  title: "Keep on Top",      defaultKey: "t", defaultMods: [.command, .control]),
+        // Format menu
+        .init(id: "bold",       title: "Bold",             defaultKey: "b", defaultMods: [.command]),
+        .init(id: "italic",     title: "Italic",           defaultKey: "i", defaultMods: [.command]),
+        .init(id: "strikethrough", title: "Strikethrough", defaultKey: "",  defaultMods: []),
+        .init(id: "code",       title: "Code",             defaultKey: "c", defaultMods: [.command, .shift]),
+        .init(id: "heading1",   title: "Heading 1",        defaultKey: "1", defaultMods: [.command, .control]),
+        .init(id: "heading2",   title: "Heading 2",        defaultKey: "2", defaultMods: [.command, .control]),
+        .init(id: "heading3",   title: "Heading 3",        defaultKey: "3", defaultMods: [.command, .control]),
+        .init(id: "body",       title: "Body Text",        defaultKey: "0", defaultMods: [.command, .control]),
+        .init(id: "bulletList", title: "Bulleted List",    defaultKey: "8", defaultMods: [.command, .shift]),
+        .init(id: "numberList", title: "Numbered List",    defaultKey: "7", defaultMods: [.command, .shift]),
+        .init(id: "link",       title: "Link…",            defaultKey: "k", defaultMods: [.command])
     ]
 
     @Published private var overrides: [String: [String: Int]] = [:] // id -> ["mods": rawValue], key stored separately

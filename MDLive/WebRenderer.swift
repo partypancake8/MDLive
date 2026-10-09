@@ -134,6 +134,14 @@ final class DocumentModel: ObservableObject {
         }
     }
 
+    /// Format menu command (bold, heading2, bulletList, link, ...). The menu, its
+    /// shortcuts and the headless gate all come through here into the page.
+    func format(_ command: String, arg: String? = nil, completion: ((Bool) -> Void)? = nil) {
+        func js(_ s: String) -> String { (try? JSONEncoder().encode(s)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\"" }
+        let call = "MDLiveEdit.format(\(js(command)), \(arg.map(js) ?? "null"))"
+        renderer.webView.evaluateJavaScript(call) { v, _ in completion?((v as? Bool) ?? false) }
+    }
+
     // Find (V8)
     func runFind() { renderer.find(findQuery) { [weak self] c, cur in DispatchQueue.main.async { self?.findCount = c; self?.findCurrent = cur } } }
     func findStep(_ forward: Bool) { renderer.findNext(forward: forward) { [weak self] c, cur in DispatchQueue.main.async { self?.findCount = c; self?.findCurrent = cur } } }

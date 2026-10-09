@@ -25,7 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let env = ProcessInfo.processInfo.environment
         if let out = env["MDLIVE_EDIT_SELFTEST"], let open = env["MDLIVE_OPEN"] {
             EditSelfTestRunner.shared.run(mdPath: open, outPath: out,
-                                          text: env["MDLIVE_EDIT_TEXT"], selector: env["MDLIVE_EDIT_SELECTOR"] ?? "p")
+                                          text: env["MDLIVE_EDIT_TEXT"], selector: env["MDLIVE_EDIT_SELECTOR"] ?? "p",
+                                          selectWord: env["MDLIVE_EDIT_SELECT_WORD"], format: env["MDLIVE_EDIT_FORMAT"],
+                                          pasteHTML: env["MDLIVE_EDIT_PASTE_HTML"], undo: env["MDLIVE_EDIT_UNDO"] == "1")
             return
         }
         if let out = env["MDLIVE_SELFTEST"], let open = env["MDLIVE_OPEN"] {
@@ -110,16 +112,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fileMenu.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileItem.submenu = fileMenu
 
-        // Edit (find + standard copy/select via the responder chain → WebView)
+        // Edit: the standard items go to the first responder (the WebView) with a
+        // nil target, so WebKit's own undo, cut, copy and paste run.
         let editItem = NSMenuItem(); main.addItem(editItem)
         let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenu.addItem(.separator())
         addCmd(editMenu, "find", #selector(findInDocument))
         addCmd(editMenu, "findNext", #selector(findNextItem))
         addCmd(editMenu, "findPrev", #selector(findPrevItem))
         editItem.submenu = editMenu
+
+        // Format: each item runs MDLiveEdit.format(<id>) in the front document.
+        let formatItem = NSMenuItem(); main.addItem(formatItem)
+        let formatMenu = NSMenu(title: "Format")
+        for group in [["bold", "italic", "strikethrough", "code"],
+                      ["heading1", "heading2", "heading3", "body"],
+                      ["bulletList", "numberList"]] {
+            for id in group { addCmd(formatMenu, id, #selector(formatCommand(_:))).representedObject = id }
+            formatMenu.addItem(.separator())
+        }
+        addCmd(formatMenu, "link", #selector(insertLink))
+        formatItem.submenu = formatMenu
 
         // View
         let viewItem = NSMenuItem(); main.addItem(viewItem)
@@ -191,6 +212,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func toggleOutline() { WindowManager.shared.toggleOutlineFront() }
     @objc private func keepOnTop() { WindowManager.shared.toggleFloatFront() }
     @objc private func checkForUpdates() { updater.checkForUpdates(nil) }
+    @objc private func formatCommand(_ sender: NSMenuItem) {
+        if let id = sender.representedObject as? String { WindowManager.shared.formatFront(id) }
+    }
+
+    /// Link…: ask for the URL (prefilled from the clipboard when it holds one) and
+    /// wrap the selection. An empty URL removes the link under the caret.
+    @objc private func insertLink() {
+        guard WindowManager.shared.hasFrontDocument else { return }
+        let alert = NSAlert()
+        alert.messageText = "Link"
+        alert.informativeText = "Enter the address for the selected text. Leave it empty to remove a link."
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        field.placeholderString = "https://"
+        field.stringValue = Self.linkCandidate(NSPasteboard.general.string(forType: .string)) ?? ""
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        WindowManager.shared.formatFront("link", arg: field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// The clipboard text if it looks like a link address (a web or mail URL with
+    /// no spaces), else nil.
+    static func linkCandidate(_ text: String?) -> String? {
+        guard let t = text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty,
+              t.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let url = URL(string: t), let scheme = url.scheme?.lowercased() else { return nil }
+        if scheme == "mailto" { return t.count > 7 ? t : nil }
+        guard ["http", "https"].contains(scheme), let host = url.host, !host.isEmpty else { return nil }
+        return t
+    }
 
     @objc private func showHelp() {
         if let url = Bundle.main.url(forResource: "Help", withExtension: "md", subdirectory: "web") {

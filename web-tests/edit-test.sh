@@ -18,18 +18,26 @@ fails=0
 
 # case <name> <css selector> <text or ""> <python check over (orig, new) line lists>
 run_case() {
-  local name="$1" sel="$2" text="$3" check="$4" d="$WORK/$1"
+  local name="$1" sel="$2" text="$3" check="$4"
+  if [[ -n "$text" ]]; then
+    run_env "$name" "$check" MDLIVE_EDIT_SELECTOR="$sel" MDLIVE_EDIT_TEXT="$text"
+  else
+    run_env "$name" "$check" MDLIVE_EDIT_SELECTOR="$sel"
+  fi
+}
+
+# run_env <name> <python check> [ENV=value ...]: the gate with any extra env
+# (MDLIVE_EDIT_FORMAT, MDLIVE_EDIT_SELECT_WORD, MDLIVE_EDIT_PASTE_HTML, MDLIVE_EDIT_UNDO).
+run_env() {
+  local name="$1" check="$2" d="$WORK/$(echo "$1" | tr -c 'A-Za-z0-9' '_')"; shift 2
   mkdir -p "$d"; cp "$SRC" "$d/doc.md"; cp -R sample/assets "$d/"
   touch -t 202001010000 "$d/doc.md"
   local rc=0
-  if [[ -n "$text" ]]; then
-    MDLIVE_EDIT_SELFTEST="$d/out.json" MDLIVE_OPEN="$d/doc.md" MDLIVE_EDIT_SELECTOR="$sel" MDLIVE_EDIT_TEXT="$text" "$BIN" >/dev/null 2>&1 || rc=$?
-  else
-    MDLIVE_EDIT_SELFTEST="$d/out.json" MDLIVE_OPEN="$d/doc.md" MDLIVE_EDIT_SELECTOR="$sel" "$BIN" >/dev/null 2>&1 || rc=$?
-  fi
+  env "$@" MDLIVE_EDIT_SELFTEST="$d/out.json" MDLIVE_OPEN="$d/doc.md" "$BIN" >/dev/null 2>&1 || rc=$?
   if python3 -I - "$SRC" "$d/doc.md" "$d/out.json" "$rc" "$check" <<'PY'
 import difflib, json, os, sys
 src, new, out, rc, check = sys.argv[1:6]
+P = os.environ.get("P", "")
 O = open(src).read().split("\n"); N = open(new).read().split("\n")
 info = json.load(open(out)) if os.path.exists(out) else {}
 changed = [l for l in difflib.unified_diff(O, N, lineterm="", n=0) if l[:1] in "+-" and l[:3] not in ("+++", "---")]
@@ -62,6 +70,25 @@ run_case "Enter after a paragraph adds a new paragraph" "p" $'\nA brand new para
   'removed == [] and added in (["A brand new paragraph.", ""], ["", "A brand new paragraph."]) and N.count("A brand new paragraph.") == 1'
 run_case "clicking in without typing never writes" "p" "" \
   'changed == [] and info.get("saveCount") == 0 and mtime_untouched'
+
+# Format menu commands, run through DocumentModel.format like the menu items.
+export P='A paragraph with **bold**, *italic*, `inline code`, ~~strikethrough~~, and a [link](https://example.com).'
+fmt() { run_env "$1" "$2" MDLIVE_EDIT_SELECT_WORD="$3" MDLIVE_EDIT_FORMAT="$4"; }
+fmt "Bold wraps the selected word" 'removed == [P] and added == [P.replace("A paragraph", "A **paragraph**", 1)]' paragraph bold
+fmt "Italic wraps the selected word" 'removed == [P] and added == [P.replace("A paragraph", "A *paragraph*", 1)]' paragraph italic
+fmt "Strikethrough wraps the selected word" 'removed == [P] and added == [P.replace("A paragraph", "A ~~paragraph~~", 1)]' paragraph strikethrough
+fmt "Code wraps the selected word" 'removed == [P] and added == [P.replace("A paragraph", "A `paragraph`", 1)]' paragraph code
+fmt "Bold twice leaves the file alone" 'changed == [] and mtime_untouched' paragraph bold,bold
+fmt "Bold on bold text removes it" 'removed == [P] and added == [P.replace("**bold**", "bold", 1)]' bold bold
+fmt "Heading 2 turns the paragraph into a heading" 'removed == [P] and added == ["## " + P]' paragraph heading2
+fmt "Heading 1 changes the heading level" 'removed == ["### Heading 3"] and added == ["# Heading 3"]' "Heading 3" heading1
+fmt "Heading 3 on a level 3 heading makes it body text" 'removed == ["### Heading 3"] and added == ["Heading 3"]' "Heading 3" heading3
+fmt "Body Text makes the heading a paragraph" 'removed == ["### Heading 3"] and added == ["Heading 3"]' "Heading 3" body
+fmt "Bulleted List makes a list item" '("- " + P) in N and P not in N' paragraph bulletList
+fmt "Numbered List makes a list item" 'removed == [P] and added == ["1. " + P]' paragraph numberList
+fmt "Bulleted List on a list item unwraps it" '"bullet one" in N and "- bullet one" not in N and "- bullet two" in N' "bullet one" bulletList
+run_env "Paste of rich text lands as plain text" '"pasted-rich text" in "\n".join(N) and "<b>" not in "\n".join(N) and len(removed) == 1' MDLIVE_EDIT_PASTE_HTML='<b>pasted-rich</b> text'
+run_env "Undo from the Edit menu removes typed text" 'info.get("undoWorked") is True and "undo-probe-token" not in "\n".join(N)' MDLIVE_EDIT_UNDO=1
 
 echo
 echo "$fails failed"

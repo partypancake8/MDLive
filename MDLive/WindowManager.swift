@@ -105,6 +105,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
         w.level = (w.level == .floating) ? .normal : .floating
     }
 
+    var hasFrontDocument: Bool { front() != nil }
+    func formatFront(_ command: String, arg: String? = nil) { front()?.model.format(command, arg: arg) } // Format menu
     func findFront() { front()?.model.openFind() }                  // ⌘F (V8)
     func findStepFront(_ forward: Bool) { front()?.model.findStep(forward) }
     func printFront() { if let m = front()?.model { Exporter.printDoc(m.renderer.webView) } }      // ⌘P (V18)

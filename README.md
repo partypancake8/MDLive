@@ -29,6 +29,12 @@ Google Doc. Your change is autosaved straight back to the Markdown file.
   about a second after you stop typing, and only the lines of the blocks you
   touched change in the file, so the rest of your Markdown stays byte for byte
   what it was. Math and Mermaid diagrams are kept as they are
+- A Format menu for simple edits: bold, italic, strikethrough, inline code,
+  Heading 1 to 3, body text, bulleted and numbered lists, and links. Each one
+  toggles, so Bold on bold text takes it off and Body Text turns a heading back
+  into a paragraph, and the result is written back as plain Markdown
+- The standard Edit menu: undo, redo, cut, copy, paste (always as plain text)
+  and select all
 - Keeps your scroll position across refreshes, so the page does not jump
 - Syntax highlighting for fenced code blocks
 - GitHub style tables, task lists, footnotes, definition lists, strikethrough
@@ -80,6 +86,13 @@ mdlive README.md
 | Copy file path | `Ctrl+L` |
 | Print | `Ctrl+P` |
 | Settings | `Ctrl+,` |
+| Undo, redo (Mac) | `Ctrl+Z`, `Ctrl+Shift+Z` |
+| Cut, copy, paste (Mac) | `Ctrl+X`, `Ctrl+C`, `Ctrl+V` |
+| Bold, italic (Mac) | `Ctrl+B`, `Ctrl+I` |
+| Inline code (Mac) | `Ctrl+Shift+C` |
+| Heading 1, 2, 3, body text (Mac) | `Ctrl+Cmd+1`, `Ctrl+Cmd+2`, `Ctrl+Cmd+3`, `Ctrl+Cmd+0` |
+| Bulleted list, numbered list (Mac) | `Ctrl+Shift+8`, `Ctrl+Shift+7` |
+| Link (Mac) | `Ctrl+K` |
 
 ## macOS
 
@@ -100,7 +113,11 @@ Install to `/Applications` and launch it by name. Running `open -a` against the
 raw DerivedData path fails with Launch Services error -600.
 
 The shortcuts match the table above with Command in place of Control, so Open is
-`⌘O` and the outline is `⌥⌘1`.
+`⌘O` and the outline is `⌥⌘1`. The rows marked Mac are the Edit and Format
+menus, which only the Mac app has, since the Linux port is a read-only preview.
+The heading keys keep both modifiers, so Heading 1 is `⌃⌘1` and body text is
+`⌃⌘0`. Strikethrough has no default key. Every Format shortcut can be remapped
+in the Shortcuts settings tab.
 
 The Mac build is ad hoc signed for local use. Developer ID signing and
 notarization are not set up, so the Sparkle update plumbing is wired in but

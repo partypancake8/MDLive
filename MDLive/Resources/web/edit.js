@@ -119,6 +119,14 @@
         return "![" + (attr(n, "alt") || "").replace(/([\[\]])/g, "\\$1") + "](" + (attr(n, "data-src") || attr(n, "src") || "") +
           (t2 ? ' "' + t2.replace(/"/g, '\\"') + '"' : "") + ")";
       case "INPUT": case "BUTTON": case "SCRIPT": case "STYLE": return "";
+      case "SPAN":
+        var st = n.style, out = kids(n);
+        if (st) {
+          if (/line-through/.test(st.textDecoration || st.textDecorationLine || "")) out = wrap("~~", out);
+          if (st.fontStyle === "italic") out = wrap("*", out);
+          if (/^(bold|bolder|[6-9]00)$/.test(st.fontWeight || "")) out = wrap("**", out);
+        }
+        return out;
       default:
         if (isBlock(n)) return block(n);
         return kids(n);
@@ -162,8 +170,8 @@
       return new Array(lvl + 1).join("#") + (h ? " " + h : "");
     }
     switch (tag) {
-      case "P": return inlineBlock(n);
-      case "DIV": case "SECTION": case "DT":
+      case "P": case "DIV": case "SECTION": case "DT":
+        // WebKit can leave a list (or another block) inside a paragraph.
         for (var i = 0; i < n.childNodes.length; i++) if (isBlock(n.childNodes[i])) return blocks(n.childNodes);
         return inlineBlock(n);
       case "UL": case "OL": return list(n);
@@ -521,17 +529,179 @@
         else if (a.closest("td,th")) e.preventDefault(); // a table cell is one line
       });
       // Paste as plain text so pasted content takes the document's own look.
-      c.addEventListener("paste", function (e) {
-        var t = e.clipboardData && e.clipboardData.getData("text/plain");
-        e.preventDefault();
-        if (t) document.execCommand("insertText", false, t);
-      });
+      c.addEventListener("paste", onPaste);
       c.addEventListener("drop", function (e) {
         var dt = e.dataTransfer;
         if (dt && dt.types && Array.prototype.indexOf.call(dt.types, "Files") >= 0) e.preventDefault();
       });
     }
     E.setup(c, window.__mdliveSource || "");
+  };
+
+  // Paste as plain text. When a source only offers HTML, its text is used.
+  function onPaste(e) {
+    var dt = e.clipboardData, t = dt ? dt.getData("text/plain") : "";
+    if (!t && dt) {
+      var h = dt.getData("text/html");
+      if (h) t = new DOMParser().parseFromString(h, "text/html").body.textContent || "";
+    }
+    e.preventDefault();
+    if (t) document.execCommand("insertText", false, t);
+  }
+
+  // ---------- Format menu commands ----------
+  // One entry point for the Format menu, its shortcuts and the headless gate.
+  // Every command goes through execCommand, so WebKit's undo stack and the
+  // normal input -> splice -> autosave path run exactly as they do for typing.
+  var INLINE = { bold: "bold", italic: "italic", strikethrough: "strikeThrough" };
+  var BLOCKS = { heading1: "H1", heading2: "H2", heading3: "H3", body: "P" };
+
+  function contentRoot() { return document.getElementById("content"); }
+  function selRange() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    var r = sel.getRangeAt(0), c = contentRoot();
+    return c && c.contains(r.commonAncestorContainer) ? r : null;
+  }
+  function elOf(n) { return n && (n.nodeType === 1 ? n : n.parentNode); }
+  function topBlock(n) {
+    var c = contentRoot();
+    while (n && n.parentNode && n.parentNode !== c) n = n.parentNode;
+    return n && n.parentNode === c ? n : null;
+  }
+  function closestIn(n, sel) {
+    var e = elOf(n), c = contentRoot();
+    while (e && e !== c) { if (e.matches && e.matches(sel)) return e; e = e.parentNode; }
+    return null;
+  }
+  function selectRange(r) { var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+
+  // A collapsed caret inside a word acts on that word.
+  function expandToWord() {
+    var r = selRange();
+    if (!r || !r.collapsed || r.startContainer.nodeType !== 3) return !!r && !r.collapsed;
+    var t = r.startContainer.textContent, a = r.startOffset, b = a, w = /[\wÀ-￿'-]/;
+    while (a > 0 && w.test(t.charAt(a - 1))) a--;
+    while (b < t.length && w.test(t.charAt(b))) b++;
+    if (a === b) return false;
+    var nr = document.createRange();
+    nr.setStart(r.startContainer, a); nr.setEnd(r.startContainer, b);
+    selectRange(nr);
+    return true;
+  }
+
+  function escHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  // Inline code has no execCommand of its own: insertHTML keeps it undoable.
+  function toggleCode() {
+    var r = selRange(); if (!r) return false;
+    var code = closestIn(r.commonAncestorContainer, "code");
+    if (code && closestIn(code, "pre")) return false;
+    if (code) {
+      var whole = document.createRange(); whole.selectNode(code); selectRange(whole);
+      return document.execCommand("insertHTML", false, escHtml(code.textContent));
+    }
+    var text = r.toString();
+    if (!text) return false;
+    return document.execCommand("insertHTML", false, "<code>" + escHtml(text) + "</code>");
+  }
+
+  function toggleLink(url) {
+    var r = selRange(); if (!r) return false;
+    var a = closestIn(r.commonAncestorContainer, "a");
+    if (!url) {
+      if (!a) return false;
+      var whole = document.createRange(); whole.selectNodeContents(a); selectRange(whole);
+      return document.execCommand("unlink");
+    }
+    if (a) { a.setAttribute("href", url); schedule(); return true; }
+    if (r.collapsed) {
+      // Nothing selected and no word under the caret: the URL is its own text.
+      document.execCommand("insertText", false, url);
+      var r2 = selRange();
+      if (!r2 || r2.startContainer.nodeType !== 3 || r2.startOffset < url.length) return true;
+      var nr = document.createRange();
+      nr.setStart(r2.startContainer, r2.startOffset - url.length); nr.setEnd(r2.startContainer, r2.startOffset);
+      selectRange(nr);
+    }
+    return document.execCommand("createLink", false, url);
+  }
+
+  // After a block command WebKit puts a fresh element where the old block was.
+  // It inherits the old block's source range so the splice replaces those lines.
+  function restamp(start, end) {
+    if (start === null) return;
+    var c = contentRoot();
+    if (c.querySelector(':scope > [data-src-start="' + start + '"][data-src-end="' + end + '"]')) return;
+    var r = selRange(), top = r && topBlock(r.startContainer);
+    if (top && top.nodeType === 1 && !top.hasAttribute("data-src-start")) {
+      top.setAttribute("data-src-start", start); top.setAttribute("data-src-end", end);
+    }
+  }
+
+  function blockCommand(cmd) {
+    var r = selRange(); if (!r) return false;
+    var top = topBlock(r.startContainer);
+    var start = top && top.nodeType === 1 ? top.getAttribute("data-src-start") : null;
+    var end = top && top.nodeType === 1 ? top.getAttribute("data-src-end") : null;
+    var ok;
+    if (cmd === "bulletList" || cmd === "numberList") {
+      ok = document.execCommand(cmd === "bulletList" ? "insertUnorderedList" : "insertOrderedList");
+    } else {
+      var want = BLOCKS[cmd], cur = closestIn(r.startContainer, "h1,h2,h3,h4,h5,h6,p,li,div");
+      if (cur && cur.tagName === want && want !== "P") want = "P"; // the same heading again toggles it off
+      ok = document.execCommand("formatBlock", false, "<" + want.toLowerCase() + ">");
+    }
+    restamp(start, end);
+    return ok;
+  }
+
+  E.format = function (cmd, arg) {
+    var c = contentRoot();
+    if (!E.enabled || !c) return false;
+    if (!selRange()) return false;
+    try { document.execCommand("styleWithCSS", false, false); } catch (e) {}
+    var ok = false;
+    if (INLINE[cmd]) { expandToWord(); ok = document.execCommand(INLINE[cmd]); }
+    else if (cmd === "code") { expandToWord(); ok = toggleCode(); }
+    else if (cmd === "link") { expandToWord(); ok = toggleLink(arg || ""); }
+    else if (BLOCKS[cmd] || cmd === "bulletList" || cmd === "numberList") ok = blockCommand(cmd);
+    schedule();
+    return !!ok;
+  };
+
+  // Headless gate helpers.
+  // Select the first occurrence of `text` anywhere in #content.
+  E.selectText = function (text) {
+    var c = contentRoot(); if (!c || !text) return { ok: false };
+    var w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT, null), nodes = [], all = "", n;
+    while ((n = w.nextNode())) { nodes.push([n, all.length]); all += n.textContent; }
+    var at = all.indexOf(text);
+    if (at < 0) return { ok: false, error: "not found: " + text };
+    function pos(i, isEnd) {
+      for (var k = nodes.length - 1; k >= 0; k--) {
+        var s = nodes[k][1];
+        if (isEnd ? s < i : s <= i) return [nodes[k][0], i - s];
+      }
+      return [nodes[0][0], 0];
+    }
+    var a = pos(at, false), b = pos(at + text.length, true);
+    c.focus();
+    var r = document.createRange();
+    r.setStart(a[0], a[1]); r.setEnd(b[0], b[1]);
+    selectRange(r);
+    return { ok: true, target: elOf(a[0]).tagName, selected: r.toString() };
+  };
+  // Run the real paste handler with HTML (plus its text) on the clipboard.
+  E.testPaste = function (html) {
+    var c = contentRoot();
+    var dt = new DataTransfer();
+    dt.setData("text/html", html);
+    dt.setData("text/plain", new DOMParser().parseFromString(html, "text/html").body.textContent || "");
+    var ev = new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true });
+    var r = selRange();
+    (r ? elOf(r.startContainer) : c).dispatchEvent(ev);
+    return { ok: true, prevented: ev.defaultPrevented };
   };
 
   // Headless edit gate (MDLIVE_EDIT_SELFTEST): put the caret at the end of the
