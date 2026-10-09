@@ -26,7 +26,7 @@ final class MenuRebuildTests: XCTestCase {
         Shortcuts.shared.set("find", key: "j", mods: [.command, .shift])
         let menu2 = delegate.makeMainMenu()
         let find2 = find(menu2, "Find…")
-        XCTAssertEqual(find2?.keyEquivalent, "j", "remapped key must reach the menu item")
+        XCTAssertEqual(find2?.keyEquivalent.lowercased(), "j", "remapped key must reach the menu item (a capital when Shift is in the mask)")
         XCTAssertTrue(find2?.keyEquivalentModifierMask.contains(.shift) ?? false)
 
         // A third build proves repeated rebuilds are safe.

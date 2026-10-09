@@ -93,6 +93,7 @@ mdlive README.md
 | Heading 1, 2, 3, body text (Mac) | `Ctrl+Cmd+1`, `Ctrl+Cmd+2`, `Ctrl+Cmd+3`, `Ctrl+Cmd+0` |
 | Bulleted list, numbered list (Mac) | `Ctrl+Shift+8`, `Ctrl+Shift+7` |
 | Link (Mac) | `Ctrl+K` |
+| Version history (Mac) | `Ctrl+Alt+Y` (`⌥⌘Y` on the Mac) |
 
 ## macOS
 
@@ -118,6 +119,32 @@ menus, which only the Mac app has, since the Linux port is a read-only preview.
 The heading keys keep both modifiers, so Heading 1 is `⌃⌘1` and body text is
 `⌃⌘0`. Strikethrough has no default key. Every Format shortcut can be remapped
 in the Shortcuts settings tab.
+
+### Version History
+
+MDLive keeps a log of every change to every file it has open, a bit like
+Google Docs. File > Version History… (`⌥⌘Y`) opens a sidebar on the right that
+lists the versions of the current file, newest first and grouped by day. Each
+row shows the time and where the change came from:
+
+- **Opened**: the file as it was when MDLive opened it (recorded the first time,
+  and again whenever the file on disk differs from the newest version).
+- **You**: an autosave of your edits. Saves less than two minutes apart are
+  grouped into one version.
+- **Outside change**: another program changed the file while it was open.
+- **Restored**: a Restore from the sidebar.
+
+Click a row to see that version, read only, with a bar on top that says when it
+is from. **Restore** writes it back to the file right away (the version it
+replaced stays in the list, so a restore can be undone the same way), and
+**Back to current** returns to the live file. Closing the sidebar also returns
+to it.
+
+The log lives in `~/Library/Application Support/MDLive/history/`, one folder per
+file (named by the SHA-256 of its path) with an `index.json` and one `.md`
+snapshot per version. Each file keeps its newest 200 versions and the whole log
+stays under 500 MB, dropping the oldest versions first. Set `MDLIVE_HISTORY_DIR`
+to keep it somewhere else (the tests and headless gates do).
 
 The Mac build is ad hoc signed for local use. Developer ID signing and
 notarization are not set up, so the Sparkle update plumbing is wired in but

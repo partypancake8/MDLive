@@ -381,6 +381,15 @@
       .forEach(function (n) { if (!(n.classList.contains("katex") && n.parentNode.closest && n.parentNode.closest(".katex-display"))) n.setAttribute("contenteditable", "false"); });
   }
 
+  // Read only again (an old version is on screen): no caret, no posts.
+  E.disable = function (c) {
+    E.enabled = false;
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (observer) { observer.disconnect(); observer = null; }
+    S = null;
+    if (c) { c.removeAttribute("contenteditable"); c.blur(); }
+  };
+
   E.setup = function (c, markdown) {
     if (observer) observer.disconnect();
     makeAtoms(c);
@@ -639,6 +648,30 @@
     }
   }
 
+  // WebKit joins a new list item onto a list right next to it. In Markdown that
+  // rewrites the neighbour too, so the new item gets a list of its own and the
+  // neighbour keeps its source lines (the blank line between them stays).
+  function splitMergedList(nb) {
+    var c = contentRoot(), r = selRange(), li = r && closestIn(r.startContainer, "li");
+    var lst = li && li.parentNode;
+    if (!lst || lst.parentNode !== c) return;
+    var items = Array.prototype.filter.call(lst.children, function (x) { return x.tagName === "LI"; });
+    if (items.length < 2) return;
+    var idx = items.indexOf(li);
+    if (idx !== 0 && idx !== items.length - 1) return;
+    var at = textOffset(li, r.startContainer, r.startOffset);
+    var fresh = document.createElement(lst.tagName);
+    lst.removeAttribute("data-src-start"); lst.removeAttribute("data-src-end");
+    for (var i = 0; i < nb.length; i++) {
+      if (nb[i].tag === lst.tagName && nb[i].s !== null) {
+        lst.setAttribute("data-src-start", nb[i].s); lst.setAttribute("data-src-end", nb[i].e); break;
+      }
+    }
+    c.insertBefore(fresh, idx === 0 ? lst : lst.nextSibling);
+    fresh.appendChild(li);
+    caretAtOffset(li, at);
+  }
+
   function blockCommand(cmd) {
     var r = selRange(); if (!r) return false;
     var top = topBlock(r.startContainer);
@@ -646,7 +679,11 @@
     var end = top && top.nodeType === 1 ? top.getAttribute("data-src-end") : null;
     var ok;
     if (cmd === "bulletList" || cmd === "numberList") {
+      var wasList = top && /^(UL|OL)$/.test(top.tagName);
+      var nb = top && top.nodeType === 1 ? [top.previousElementSibling, top.nextElementSibling].filter(Boolean)
+        .map(function (e) { return { tag: e.tagName, s: attr(e, "data-src-start"), e: attr(e, "data-src-end") }; }) : [];
       ok = document.execCommand(cmd === "bulletList" ? "insertUnorderedList" : "insertOrderedList");
+      if (ok && !wasList) splitMergedList(nb);
     } else {
       var want = BLOCKS[cmd], cur = closestIn(r.startContainer, "h1,h2,h3,h4,h5,h6,p,li,div");
       if (cur && cur.tagName === want && want !== "P") want = "P"; // the same heading again toggles it off
@@ -656,16 +693,45 @@
     return ok;
   }
 
+  // Character offset of (node, off) inside `block`, and the way back. Used to
+  // put a collapsed caret back where it was after a word command.
+  function textOffset(block, node, off) {
+    var r = document.createRange(); r.selectNodeContents(block); r.setEnd(node, off);
+    return r.toString().length;
+  }
+  function caretAtOffset(block, n) {
+    var w = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null), t, last = null;
+    while ((t = w.nextNode())) {
+      last = t;
+      if (n <= t.textContent.length) break;
+      n -= t.textContent.length;
+    }
+    if (!last) return;
+    var r = document.createRange();
+    r.setStart(last, Math.min(n, last.textContent.length)); r.collapse(true);
+    selectRange(r);
+  }
+
   E.format = function (cmd, arg) {
     var c = contentRoot();
     if (!E.enabled || !c) return false;
-    if (!selRange()) return false;
+    var r0 = selRange();
+    if (!r0) return false;
     try { document.execCommand("styleWithCSS", false, false); } catch (e) {}
-    var ok = false;
-    if (INLINE[cmd]) { expandToWord(); ok = document.execCommand(INLINE[cmd]); }
-    else if (cmd === "code") { expandToWord(); ok = toggleCode(); }
-    else if (cmd === "link") { expandToWord(); ok = toggleLink(arg || ""); }
+    // A plain caret acts on the word under it, and stays a plain caret at the
+    // same spot afterwards (as in Docs). Leaving the expanded word selected
+    // showed as a highlight, and in a one-word line that is the whole line.
+    var block = r0.collapsed ? topBlock(r0.startContainer) : null;
+    var at = block && block.nodeType === 1 ? textOffset(block, r0.startContainer, r0.startOffset) : null;
+    var ok = false, word = false;
+    if (INLINE[cmd]) { word = true; expandToWord(); ok = document.execCommand(INLINE[cmd]); }
+    else if (cmd === "code") { word = true; expandToWord(); ok = toggleCode(); }
+    else if (cmd === "link") { word = true; expandToWord(); ok = toggleLink(arg || ""); }
     else if (BLOCKS[cmd] || cmd === "bulletList" || cmd === "numberList") ok = blockCommand(cmd);
+    if (at !== null) {
+      if (word && block.parentNode === c) caretAtOffset(block, at);
+      else { var s = window.getSelection(); if (s.rangeCount && !s.isCollapsed) s.collapseToEnd(); }
+    }
     schedule();
     return !!ok;
   };
@@ -691,6 +757,17 @@
     r.setStart(a[0], a[1]); r.setEnd(b[0], b[1]);
     selectRange(r);
     return { ok: true, target: elOf(a[0]).tagName, selected: r.toString() };
+  };
+  // Put a collapsed caret in the middle of the first occurrence of `word`.
+  E.caretInWord = function (word) {
+    var r = E.selectText(word);
+    if (!r.ok) return r;
+    var sel = window.getSelection(), rg = sel.getRangeAt(0);
+    var n = rg.startContainer, at = rg.startOffset + Math.floor(word.length / 2);
+    if (n.nodeType === 3 && at <= n.textContent.length) {
+      var c = document.createRange(); c.setStart(n, at); c.collapse(true); selectRange(c);
+    } else sel.collapseToStart();
+    return { ok: true, target: r.target, collapsed: window.getSelection().isCollapsed };
   };
   // Run the real paste handler with HTML (plus its text) on the clipboard.
   E.testPaste = function (html) {

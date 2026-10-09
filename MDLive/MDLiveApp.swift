@@ -14,7 +14,7 @@ struct MDLiveApp: App {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     private var recentMenu = NSMenu(title: "Open Recent")
     private var shortcutsCancellable: AnyCancellable?
     // Sparkle (V21), inert: SUEnableAutomaticChecks=NO in Info.plist; only the
@@ -27,7 +27,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             EditSelfTestRunner.shared.run(mdPath: open, outPath: out,
                                           text: env["MDLIVE_EDIT_TEXT"], selector: env["MDLIVE_EDIT_SELECTOR"] ?? "p",
                                           selectWord: env["MDLIVE_EDIT_SELECT_WORD"], format: env["MDLIVE_EDIT_FORMAT"],
-                                          pasteHTML: env["MDLIVE_EDIT_PASTE_HTML"], undo: env["MDLIVE_EDIT_UNDO"] == "1")
+                                          pasteHTML: env["MDLIVE_EDIT_PASTE_HTML"], undo: env["MDLIVE_EDIT_UNDO"] == "1",
+                                          caretWord: env["MDLIVE_EDIT_CARET_WORD"], key: env["MDLIVE_EDIT_KEY"])
+            return
+        }
+        if let out = env["MDLIVE_HISTORY_SELFTEST"], let open = env["MDLIVE_OPEN"] {
+            HistorySelfTestRunner.shared.run(mdPath: open, outPath: out, text: env["MDLIVE_EDIT_TEXT"] ?? " history-edit",
+                                             outside: env["MDLIVE_OUTSIDE_TEXT"] ?? "# Changed from outside\n")
             return
         }
         if let out = env["MDLIVE_SELFTEST"], let open = env["MDLIVE_OPEN"] {
@@ -105,6 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         addCmd(fileMenu, "copyPath", #selector(copyPath))
         addCmd(fileMenu, "reveal", #selector(revealInFinder))
         fileMenu.addItem(.separator())
+        addCmd(fileMenu, "history", #selector(toggleHistory)).toolTip = "Version History: every saved version of this file"
+        fileMenu.addItem(.separator())
         addCmd(fileMenu, "print", #selector(printDocument))
         add(fileMenu, "Export as PDF…", #selector(exportPDF), "")
         add(fileMenu, "Export as HTML…", #selector(exportHTML), "")
@@ -116,9 +124,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // nil target, so WebKit's own undo, cut, copy and paste run.
         let editItem = NSMenuItem(); main.addItem(editItem)
         let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        // Undo and Redo target this delegate, which hands them to whatever would
+        // get them with a nil target (the WebView), or to the front document's
+        // WebView when no window is key (headless gates).
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z").target = self
+        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
         redo.keyEquivalentModifierMask = [.command, .shift]
+        redo.target = self
         editMenu.addItem(.separator())
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
@@ -176,8 +188,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @discardableResult
     private func addCmd(_ menu: NSMenu, _ id: String, _ action: Selector) -> NSMenuItem {
         let title = Shortcuts.shared.commands.first { $0.id == id }?.title ?? id
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: Shortcuts.shared.key(for: id))
-        item.keyEquivalentModifierMask = Shortcuts.shared.modifiers(for: id)
+        let mods = Shortcuts.shared.modifiers(for: id)
+        var key = Shortcuts.shared.key(for: id)
+        // A letter with Shift arrives as a capital ("C" for ⇧⌘C); a lowercase
+        // equivalent with a Shift mask never matched the key press.
+        if mods.contains(.shift), key.count == 1, key.first?.isLetter == true { key = key.uppercased() }
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.keyEquivalentModifierMask = mods
         item.target = self
         menu.addItem(item)
         return item
@@ -210,6 +227,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func zoomOut() { Settings.shared.fontScale = max(0.5, Settings.shared.fontScale - 0.1) }
     @objc private func zoomReset() { Settings.shared.fontScale = 1.0 }
     @objc private func toggleOutline() { WindowManager.shared.toggleOutlineFront() }
+    // MARK: Undo / Redo
+
+    private var forwarding = false
+
+    /// The object a nil-target `action` would reach, if it is not this delegate.
+    /// (target, true when it came from the responder chain).
+    private func editTargetFound(_ action: Selector, _ sender: Any?) -> (NSObject, Bool)? {
+        if let t = NSApp.target(forAction: action, to: nil, from: sender) as? NSObject,
+           !(t is AppDelegate), t !== (NSApp.delegate as AnyObject?) { return (t, true) }
+        guard let web = WindowManager.shared.frontWebView else { return nil }
+        return (web, false)
+    }
+
+    private func forward(_ action: Selector, _ sender: Any?) {
+        guard !forwarding, let (t, chain) = editTargetFound(action, sender) else { return }
+        forwarding = true; defer { forwarding = false }
+        if chain { _ = t.perform(action, with: sender) }
+        else { _ = (t as? NSResponder)?.tryToPerform(action, with: sender) } // up the WebView's own chain
+    }
+
+    @objc func undo(_ sender: Any?) { forward(Selector(("undo:")), sender) }
+    @objc func redo(_ sender: Any?) { forward(Selector(("redo:")), sender) }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        guard let action = item.action, ["undo:", "redo:"].contains(NSStringFromSelector(action)) else { return true }
+        if forwarding { return false }
+        forwarding = true; defer { forwarding = false }
+        guard let (t, chain) = editTargetFound(action, item) else { return false }
+        if chain, let v = t as? NSUserInterfaceValidations { return v.validateUserInterfaceItem(item) }
+        return true
+    }
+
+    @objc private func toggleHistory() { WindowManager.shared.toggleHistoryFront() }
     @objc private func keepOnTop() { WindowManager.shared.toggleFloatFront() }
     @objc private func checkForUpdates() { updater.checkForUpdates(nil) }
     @objc private func formatCommand(_ sender: NSMenuItem) {

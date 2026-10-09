@@ -28,6 +28,7 @@ final class Shortcuts: ObservableObject {
         .init(id: "zoomOut",    title: "Zoom Out",         defaultKey: "-", defaultMods: [.command]),
         .init(id: "actualSize", title: "Actual Size",      defaultKey: "0", defaultMods: [.command]),
         .init(id: "outline",    title: "Show Outline",     defaultKey: "1", defaultMods: [.command, .option]),
+        .init(id: "history",    title: "Version History…", defaultKey: "y", defaultMods: [.command, .option]),
         .init(id: "keepOnTop",  title: "Keep on Top",      defaultKey: "t", defaultMods: [.command, .control]),
         // Format menu
         .init(id: "bold",       title: "Bold",             defaultKey: "b", defaultMods: [.command]),

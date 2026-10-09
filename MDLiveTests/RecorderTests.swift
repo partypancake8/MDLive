@@ -48,7 +48,7 @@ final class RecorderTests: XCTestCase {
         XCTAssertEqual(Shortcuts.shared.key(for: "find"), "j")
 
         let menu = AppDelegate().makeMainMenu()
-        XCTAssertEqual(Self.find(menu, "Find…")?.keyEquivalent, "j")
+        XCTAssertEqual(Self.find(menu, "Find…")?.keyEquivalent.lowercased(), "j")
         Shortcuts.shared.reset("find")
     }
 

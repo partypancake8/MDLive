@@ -71,5 +71,7 @@ Source of truth for *what* to build: `PRD.md`. This file tracks *where the build
 
 **Decisions recorded mid-build:** DEC-V10 amended: math via **KaTeX auto-render** (post-render), not a md-it plugin (the @vscode plugin's dist path was broken; auto-render is the standard browser path). Settings uses **@Published+UserDefaults** (not raw @AppStorage) so objectWillChange fires for the Combine observers DEC-V2 needs. Test stack: 13 XCTests green (5 watcher + 4 settings + 4 image).
 
+**Round 4 (2026-10-08):** version history (global edit log, sidebar on ⌥⌘Y, read-only preview, Restore) plus the Cmd+B caret highlight fix; 0.3.0.
+
 ## Next pass resumes at
 **Steps 6-11 complete & verified (2026-06-24).** MDLive now live-refreshes on external edits: the core product works. Remaining polish: Step 4 (kitchen-sink theme/element pass), Step 5 (mdlive-img DEC-13 path validation + image fixtures), and Step 11 ship tier (Developer-ID notarization: needs Apple Developer ID). Test instrumentation (`MDLIVE_GUI_MARKER` render/window/deinit markers) is env-gated and left in for future headless verification.

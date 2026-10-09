@@ -15,12 +15,19 @@ struct DocumentView: View {
                 OutlineSidebar(items: model.outline) { model.renderer.scrollToAnchor($0) }
                     .frame(minWidth: 180, idealWidth: 220, maxWidth: 340)
             }
-            ZStack(alignment: .topTrailing) {
-                WebHost(renderer: model.renderer)
-                if let err = model.errorText { ErrorView(text: err) }
-                if model.showFind { FindBar(model: model).padding(10) }
+            VStack(spacing: 0) {
+                if let v = model.previewing { HistoryBanner(model: model, version: v) }
+                ZStack(alignment: .topTrailing) {
+                    WebHost(renderer: model.renderer)
+                    if let err = model.errorText { ErrorView(text: err) }
+                    if model.showFind { FindBar(model: model).padding(10) }
+                }
             }
             .frame(minWidth: 420)
+            if model.showHistory {
+                HistorySidebar(model: model)
+                    .frame(minWidth: 200, idealWidth: 240, maxWidth: 340)
+            }
         }
         .frame(minWidth: 480, minHeight: 360)
         .onExitCommand { if model.showFind { model.closeFind() } }   // Esc closes find
@@ -57,6 +64,12 @@ final class DocumentModel: ObservableObject {
     @Published var findQuery = ""
     @Published var findCount = 0
     @Published var findCurrent = 0
+    // Version history: the sidebar, its list (newest first) and the version
+    // being looked at (read only) while one is selected.
+    @Published var showHistory = false { didSet { if showHistory { refreshVersions() } else { backToCurrent() } } }
+    @Published private(set) var versions: [HistoryVersion] = []
+    @Published private(set) var previewing: HistoryVersion? = nil
+    let history: HistoryStore
 
     private var watcher: FileWatcher?
     private var settingsCancellable: AnyCancellable?
@@ -74,8 +87,9 @@ final class DocumentModel: ObservableObject {
     private var diskText: String?
     private var terminateObserver: NSObjectProtocol?
 
-    init(url: URL) {
+    init(url: URL, history: HistoryStore = .shared) {
         self.url = url
+        self.history = history
         let baseDir = url.deletingLastPathComponent().path
         renderer.onLink = { LinkRouter.route($0, baseDir: baseDir) }
         renderer.onOutline = { [weak self] items in DispatchQueue.main.async { self?.outline = items } }
@@ -88,7 +102,7 @@ final class DocumentModel: ObservableObject {
             self?.flushSave()
         }
         renderer.loadShell()
-        load()
+        load(label: .opened)
         makeWatcher()
         settingsCancellable = Settings.shared.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async { self?.renderer.applyCurrentSettings(); self?.makeWatcher() }
@@ -101,7 +115,7 @@ final class DocumentModel: ObservableObject {
         NSLog("MDLive.DocumentModel.deinit %@", url.lastPathComponent)
     }
 
-    func reload() { flushSave(); load() } // ⌘R
+    func reload() { flushSave(); load(label: .outside) } // ⌘R
 
     // MARK: autosave
 
@@ -124,14 +138,62 @@ final class DocumentModel: ObservableObject {
         let original = diskText ?? ""
         let out = DocumentSaver.conform(text, to: original)
         if out == original { return } // edited and put back: nothing to write
+        commit(out, label: .you)
+    }
+
+    /// The one write path: autosave and Restore both come through here, so the
+    /// watcher, the model and the history log all see the same thing.
+    @discardableResult
+    private func commit(_ out: String, label: HistoryStore.Label) -> Bool {
         do {
             bytesWritten = try DocumentSaver.write(out, to: url)
             watcher?.noteSelfWrite()
             diskText = out; markdown = out; lastGood = out
             saveCount += 1
+            history.record(out, for: url, label: label)
+            if showHistory { refreshVersions() }
+            return true
         } catch {
             NSLog("MDLive: autosave failed for %@: %@", url.path, error.localizedDescription)
+            return false
         }
+    }
+
+    // MARK: version history
+
+    func refreshVersions() { versions = history.versions(for: url).reversed() }
+
+    /// Show an old version read only (no editing while it is up).
+    func preview(_ v: HistoryVersion) {
+        guard let text = history.snapshot(v.id, for: url) else { return }
+        flushSave()
+        previewing = v
+        renderer.webView.evaluateJavaScript("disableEditing();", completionHandler: nil)
+        renderer.render(markdown: text, baseDir: url.deletingLastPathComponent().path, scrollPct: 0)
+    }
+
+    /// Leave the preview: the live file again, editable.
+    func backToCurrent() {
+        guard previewing != nil else { return }
+        previewing = nil
+        renderer.render(markdown: markdown, baseDir: url.deletingLastPathComponent().path, scrollPct: 0)
+        renderer.webView.evaluateJavaScript("enableEditing();", completionHandler: nil)
+    }
+
+    /// Restore: write the version's exact bytes through the normal save path
+    /// (recorded as `restored`), then show the live file. No prompt; the
+    /// version it replaced stays in the list.
+    @discardableResult
+    func restore(_ v: HistoryVersion) -> Bool {
+        guard let text = history.snapshot(v.id, for: url) else { return false }
+        saveWork?.cancel(); saveWork = nil
+        pendingText = nil; hasPendingSave = false
+        let ok = text == diskText || commit(text, label: .restored)
+        previewing = nil
+        renderer.render(markdown: markdown, baseDir: url.deletingLastPathComponent().path, scrollPct: 0)
+        renderer.webView.evaluateJavaScript("enableEditing();", completionHandler: nil)
+        refreshVersions()
+        return ok
     }
 
     /// Format menu command (bold, heading2, bulletList, link, ...). The menu, its
@@ -161,12 +223,12 @@ final class DocumentModel: ObservableObject {
             if hasPendingSave { return }
             // Our own autosave coming back through the watcher: nothing to re-render.
             if let d = diskText, let now = try? String(contentsOf: url, encoding: .utf8), now == d { return }
-            load()
+            load(label: .outside)
         case .deleted: errorText = "Can't find this file, it may have been moved or deleted.\n\(url.path)"
         }
     }
 
-    private func load() {
+    private func load(label: HistoryStore.Label) {
         let fm = FileManager.default
         guard fm.fileExists(atPath: url.path) else {
             errorText = "Can't find this file, it may have been moved or deleted.\n\(url.path)"; return
@@ -177,7 +239,12 @@ final class DocumentModel: ObservableObject {
         do {
             let s = try String(contentsOf: url, encoding: .utf8)
             markdown = s; lastGood = s; diskText = s; errorText = nil; lastUpdated = Date()
-            renderer.render(markdown: s, baseDir: url.deletingLastPathComponent().path, scrollPct: 0)
+            history.record(s, for: url, label: label)   // skipped when equal to the newest version
+            if showHistory { refreshVersions() }
+            // While an old version is on screen, the live file updates underneath it.
+            if previewing == nil {
+                renderer.render(markdown: s, baseDir: url.deletingLastPathComponent().path, scrollPct: 0)
+            }
         } catch {
             if lastGood.isEmpty { errorText = "This file isn't readable as text (UTF-8).\n\(url.path)" }
         }

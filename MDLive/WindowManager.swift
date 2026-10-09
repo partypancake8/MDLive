@@ -1,4 +1,5 @@
 import AppKit
+import WebKit
 import SwiftUI
 import Combine
 
@@ -90,6 +91,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
     func refreshFront() { front()?.model.reload() }                 // ⌘R
     func toggleOutlineFront() { front()?.model.showOutline.toggle() } // ⌥⌘1 (V10)
 
+    /// The front document's WebView (Undo/Redo fallback when no window is key).
+    var frontWebView: WKWebView? { front()?.model.renderer.webView }
+    func toggleHistoryFront() { front()?.model.showHistory.toggle() } // ⌥⌘Y version history
     func revealFront() {                                             // ⌘⇧R
         if let url = front()?.url { NSWorkspace.shared.activateFileViewerSelecting([url]) }
     }
@@ -123,7 +127,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
         }
     }
 
+    /// Headless edit gate only: the offscreen document that menu commands act on.
+    var headlessFront: DocumentModel?
+
     private func front() -> (url: URL, model: DocumentModel)? {
+        if let m = headlessFront { return (m.url, m) }
         guard let w = NSApp.keyWindow ?? NSApp.mainWindow,
               let e = docs.first(where: { $0.value.window == w }) else { return nil }
         return (e.key, e.value.model)

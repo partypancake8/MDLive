@@ -88,6 +88,9 @@ final class EditSelfTestRunner {
     private var target: Any = NSNull()
     private var formatResult: Any = NSNull()
     private var undoWorked: Any = NSNull()
+    private var selectionAfter: Any = NSNull()
+    private var keySent: Any = NSNull()
+    private var menuOwner: AppDelegate?   // keeps the menu items' target alive
 
     struct Plan {
         var text: String?
@@ -96,24 +99,37 @@ final class EditSelfTestRunner {
         var formats: [String]
         var pasteHTML: String?
         var undo: Bool
-        var changes: Bool { text?.isEmpty == false || !formats.isEmpty || pasteHTML != nil || undo }
+        var caretWord: String? = nil
+        var key: String? = nil
+        var changes: Bool { text?.isEmpty == false || !formats.isEmpty || pasteHTML != nil || undo || key != nil }
     }
 
     func run(mdPath: String, outPath: String, text: String?, selector: String,
-             selectWord: String? = nil, format: String? = nil, pasteHTML: String? = nil, undo: Bool = false) {
+             selectWord: String? = nil, format: String? = nil, pasteHTML: String? = nil, undo: Bool = false,
+             caretWord: String? = nil, key: String? = nil) {
         let formats = (format ?? "").split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let plan = Plan(text: text, selector: selector, selectWord: selectWord,
-                        formats: formats, pasteHTML: pasteHTML, undo: undo)
+                        formats: formats, pasteHTML: pasteHTML, undo: undo, caretWord: caretWord, key: key)
         let url = URL(fileURLWithPath: mdPath).standardizedFileURL
         let m = DocumentModel(url: url)
         model = m
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 800),
+        let win = GateWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 800),
                            styleMask: [.borderless], backing: .buffered, defer: false)
         win.contentView = m.renderer.webView
         win.orderOut(nil)
         win.makeFirstResponder(m.renderer.webView)
         window = win
+        if key != nil {
+            // A real key press goes through the app's own main menu, as in a window.
+            let owner = AppDelegate()
+            menuOwner = owner
+            NSApp.mainMenu = owner.makeMainMenu()
+            WindowManager.shared.headlessFront = m
+            // Key and main (still never ordered in), so nil-target menu items
+            // such as Undo find the WebView through the responder chain.
+            win.makeKey(); win.makeMain()
+        }
 
         m.renderer.onReady = { [weak self] in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self?.edit(plan, outPath: outPath) }
@@ -151,16 +167,51 @@ final class EditSelfTestRunner {
             }
             return
         }
+        if let word = plan.caretWord {
+            eval("MDLiveEdit.caretInWord(\(jsonString(word)))") { [weak self] t in
+                guard let self else { return }
+                self.target = t ?? NSNull()
+                self.runKeysAndFormats(plan, afterEdit)
+            }
+            return
+        }
         let typed = plan.formats.isEmpty ? (plan.text.map(jsonString) ?? "null") : "null"
         let place = plan.selectWord.map { "MDLiveEdit.selectText(\(jsonString($0)))" }
             ?? "MDLiveEdit.selfTest(\(jsonString(plan.selector)), \(typed))"
         eval(place) { [weak self] t in
             guard let self else { return }
             self.target = t ?? NSNull()
-            self.runFormats(plan.formats, results: []) { results in
-                if !plan.formats.isEmpty { self.formatResult = ["commands": plan.formats, "ok": results] }
-                afterEdit()
+            self.runKeysAndFormats(plan, afterEdit)
+        }
+    }
+
+    /// Key presses (MDLIVE_EDIT_KEY, comma separated) and then Format commands,
+    /// then record what is selected right after.
+    private func runKeysAndFormats(_ plan: Plan, _ afterEdit: @escaping () -> Void) {
+        let keys = (plan.key ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let delay = plan.text?.isEmpty == false && !keys.isEmpty ? 0.5 : 0.05
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.runKeys(keys, sent: []) { sent in
+                guard let self else { return }
+                if !keys.isEmpty { self.keySent = sent }
+                self.runFormats(plan.formats, results: []) { results in
+                    if !plan.formats.isEmpty { self.formatResult = ["commands": plan.formats, "ok": results] }
+                    guard !keys.isEmpty || plan.caretWord != nil else { afterEdit(); return }
+                    self.eval("String(window.getSelection())") { sel in
+                        self.selectionAfter = sel ?? NSNull()
+                        afterEdit()
+                    }
+                }
             }
+        }
+    }
+
+    private func runKeys(_ keys: [String], sent: [Bool], done: @escaping ([Bool]) -> Void) {
+        guard let m = model, let first = keys.first else { done(sent); return }
+        let ok = sendKey(first, to: m)
+        // The menu command reaches the page through evaluateJavaScript; let it land.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.runKeys(Array(keys.dropFirst()), sent: sent + [ok], done: done)
         }
     }
 
@@ -172,6 +223,35 @@ final class EditSelfTestRunner {
                 self?.runFormats(Array(cmds.dropFirst()), results: results + [ok], done: done)
             }
         }
+    }
+
+    /// Deliver a key combo like "cmd+b" as a real keyDown through NSApp.sendEvent,
+    /// so the main menu's key-equivalent path runs exactly as for a keyboard.
+    private func sendKey(_ combo: String, to m: DocumentModel) -> Bool {
+        let parts = combo.lowercased().split(separator: "+").map(String.init)
+        guard let ch = parts.last, ch.count == 1 else { return false }
+        var mods: NSEvent.ModifierFlags = []
+        for p in parts.dropLast() {
+            switch p {
+            case "cmd", "command": mods.insert(.command)
+            case "shift": mods.insert(.shift)
+            case "opt", "option", "alt": mods.insert(.option)
+            case "ctrl", "control": mods.insert(.control)
+            default: return false
+            }
+        }
+        let codes: [String: UInt16] = ["a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9,
+                                       "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17, "o": 31,
+                                       "u": 32, "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46]
+        // As a keyboard reports it: Shift turns a letter into a capital.
+        let chars = mods.contains(.shift) && ch.first?.isLetter == true ? ch.uppercased() : ch
+        guard let ev = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mods,
+                                        timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: window?.windowNumber ?? 0, context: nil,
+                                        characters: chars, charactersIgnoringModifiers: chars,
+                                        isARepeat: false, keyCode: codes[ch] ?? 0) else { return false }
+        NSApp.sendEvent(ev)
+        return true
     }
 
     /// Type a token, then send the Edit menu's own Undo item action up the
@@ -199,7 +279,7 @@ final class EditSelfTestRunner {
 
     private func readback(outPath: String) {
         guard let m = model else { return }
-        m.renderer.webView.evaluateJavaScript("JSON.stringify(window.__mdliveEditInfo || {})") { [weak self] v, _ in
+        m.renderer.webView.evaluateJavaScript("JSON.stringify(Object.assign({}, window.__mdliveEditInfo || {}, {selectionNow: String(window.getSelection())}))") { [weak self] v, _ in
             var info: [String: Any] = [:]
             if let s = v as? String, let d = (try? JSONSerialization.jsonObject(with: Data(s.utf8))) as? [String: Any] { info = d }
             let out: [String: Any] = [
@@ -212,6 +292,9 @@ final class EditSelfTestRunner {
                 "target": self?.target ?? NSNull(),
                 "format": self?.formatResult ?? NSNull(),
                 "undoWorked": self?.undoWorked ?? NSNull(),
+                "keySent": self?.keySent ?? NSNull(),
+                "selectionAfter": self?.selectionAfter ?? NSNull(),
+                "selectionSettled": info["selectionNow"] ?? NSNull(),
             ]
             self?.finish(out, outPath: outPath, code: 0)
         }
@@ -228,5 +311,123 @@ final class EditSelfTestRunner {
 
     private func jsonString(_ s: String) -> String {
         (try? JSONEncoder().encode(s)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
+    }
+}
+
+/// Offscreen gate window that may be key and main without being shown.
+final class GateWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+/// Headless version history gate. Env MDLIVE_HISTORY_SELFTEST=<json out> +
+/// MDLIVE_OPEN=<file> + MDLIVE_EDIT_TEXT + MDLIVE_OUTSIDE_TEXT (+ MDLIVE_HISTORY_DIR).
+/// Open (records `opened`), type the text at the end of the first paragraph and
+/// autosave (`you`), type again ~1 s later (must coalesce into that `you`),
+/// write the outside text past DocumentSaver so the watcher reports it
+/// (`outside`), then restore the `opened` version the way the Restore button
+/// does (`restored`). Writes the version list as JSON and exits 0.
+final class HistorySelfTestRunner {
+    static let shared = HistorySelfTestRunner()
+    private var model: DocumentModel?
+    private var window: NSWindow?
+    private var done = false
+    private var coalesced = false
+    private var restored = false
+    private var steps: [String] = []
+
+    func run(mdPath: String, outPath: String, text: String, outside: String) {
+        let url = URL(fileURLWithPath: mdPath).standardizedFileURL
+        let m = DocumentModel(url: url)
+        model = m
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 800),
+                           styleMask: [.borderless], backing: .buffered, defer: false)
+        win.contentView = m.renderer.webView
+        win.orderOut(nil)
+        win.makeFirstResponder(m.renderer.webView)
+        window = win
+        m.renderer.onReady = { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self?.typeFirst(text, outside: outside, outPath: outPath) }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 38) { [weak self] in
+            self?.steps.append("TIMEOUT"); self?.finish(outPath: outPath, code: 2)
+        }
+    }
+
+    private func type(_ s: String, then next: @escaping () -> Void) {
+        let js = (try? JSONEncoder().encode(s)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
+        model?.renderer.webView.evaluateJavaScript("JSON.stringify(MDLiveEdit.selfTest(\"p\", \(js)))") { _, _ in next() }
+    }
+
+    private func count() -> Int { model.map { $0.history.versions(for: $0.url).count } ?? 0 }
+
+    private func typeFirst(_ text: String, outside: String, outPath: String) {
+        guard let m = model else { return }
+        steps.append("opened:\(count())")
+        type(text) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + m.saveDebounce + 0.8) {
+                guard let self else { return }
+                let afterFirst = self.count()
+                self.steps.append("you:\(afterFirst) saves:\(m.saveCount)")
+                self.type("!") {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + m.saveDebounce + 0.8) {
+                        let afterSecond = self.count()
+                        self.coalesced = m.saveCount >= 2 && afterSecond == afterFirst
+                            && m.history.versions(for: m.url).last?.label == "you"
+                        self.steps.append("you2:\(afterSecond) saves:\(m.saveCount)")
+                        self.writeOutside(outside, outPath: outPath)
+                    }
+                }
+            }
+        }
+    }
+
+    private func writeOutside(_ outside: String, outPath: String) {
+        guard let m = model else { return }
+        do { try Data(outside.utf8).write(to: m.url) } catch { steps.append("outside write failed") }
+        waitForOutside(outPath: outPath, tries: 0)
+    }
+
+    private func waitForOutside(outPath: String, tries: Int) {
+        guard let m = model else { return }
+        if m.history.versions(for: m.url).last?.label == "outside" || tries > 80 {
+            steps.append("outside:\(count()) tries:\(tries)")
+            let opened = m.history.versions(for: m.url).first { $0.label == "opened" }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self else { return }
+                // The same call the banner's Restore button makes.
+                if let v = opened, m.restore(v) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        let disk = try? Data(contentsOf: m.url)
+                        self.restored = disk != nil && disk == m.history.snapshotData(v.id, for: m.url)
+                            && m.history.versions(for: m.url).last?.label == "restored"
+                        self.finish(outPath: outPath, code: 0)
+                    }
+                } else {
+                    self.steps.append("restore failed")
+                    self.finish(outPath: outPath, code: 0)
+                }
+            }
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.waitForOutside(outPath: outPath, tries: tries + 1)
+        }
+    }
+
+    private func finish(outPath: String, code: Int32) {
+        if done { return }
+        done = true
+        let versions: [[String: Any]] = model.map { m in
+            m.history.versions(for: m.url).map {
+                ["id": $0.id, "timestamp": HistoryStore.iso.string(from: $0.timestamp), "label": $0.label, "bytes": $0.bytes]
+            }
+        } ?? []
+        let out: [String: Any] = ["versions": versions, "coalesced": coalesced, "restored": restored,
+                                  "historyDir": model?.history.root.path ?? "", "steps": steps]
+        if let d = try? JSONSerialization.data(withJSONObject: out, options: [.sortedKeys, .prettyPrinted]) {
+            try? d.write(to: URL(fileURLWithPath: outPath), options: .atomic)
+        }
+        exit(code)
     }
 }

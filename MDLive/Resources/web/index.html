@@ -335,6 +335,14 @@
     return true;
   }
 
+  // Version history preview: back to the plain read-only page until
+  // enableEditing() is called again.
+  function disableEditing() {
+    if (!window.MDLiveEdit) return false;
+    window.MDLiveEdit.disable(document.getElementById("content"));
+    return true;
+  }
+
   // Mandatory ready handshake so the first render() isn't dropped (PRD §5.3).
   window.addEventListener("load", function () {
     try { window.webkit.messageHandlers.ready.postMessage(true); } catch (_) {}
